@@ -1,0 +1,924 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Advanced Game of Life Explorer</title>
+    <style>
+        :root {
+            --control-width: 320px;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+            background-color: #f0f0f0;
+            padding: 20px;
+            gap: 20px;
+        }
+        #main-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        canvas {
+            border: 2px solid #333;
+            cursor: crosshair;
+            background-color: #fff;
+        }
+        
+        #all-controls-wrapper {
+            display: grid;
+            grid-template-columns: repeat(3, var(--control-width));
+            gap: 15px;
+            align-items: start;
+        }
+        .control-column {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .control-group {
+            background-color: #fff;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .control-group h3, .control-group h4 {
+            margin-top: 0;
+            margin-bottom: 10px;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 5px;
+        }
+        button, select, input {
+            width: 100%;
+            padding: 8px;
+            border-radius: 5px;
+            border: 1px solid #ccc;
+            font-size: 14px;
+            cursor: pointer;
+            box-sizing: border-box;
+        }
+        button {
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            margin-bottom: 5px;
+        }
+        button:last-child { margin-bottom: 0; }
+        button:hover { opacity: 0.9; }
+        button:disabled { background-color: #ccc; cursor: not-allowed; }
+        
+        #palette {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(25px, 1fr));
+            gap: 4px;
+        }
+        .color-box {
+            width: 25px; height: 25px; border: 1px solid #ccc;
+            cursor: pointer; border-radius: 4px; transition: transform 0.1s; margin: auto;
+            display: flex; justify-content: center; align-items: center; font-size: 10px; color: #555;
+        }
+        .color-box.active {
+            border-color: #000; transform: scale(1.2); box-shadow: 0 0 8px rgba(0,0,0,0.3);
+        }
+        
+        .rule-input-group { margin-bottom: 10px; }
+        .rule-input-group label { display: block; margin-bottom: 4px; font-weight: bold; font-size: 13px; }
+        .range-container { display: flex; gap: 8px; align-items: center; }
+        .range-container span { font-weight: bold; }
+        .checkbox-container { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
+        .checkbox-container input { width: auto; }
+        .checkbox-container label { margin-bottom: 0; font-weight: normal; font-size: 13px; }
+        #aging-rules, #hunter-target-group { visibility: hidden; } /* Use visibility to prevent layout jump */
+        .slider-container { display: flex; align-items: center; gap: 8px; }
+        .slider-container input { flex-grow: 1; }
+
+        #rule-hunter-results-container { max-height: 240px; overflow-y: auto; margin-top: 8px; }
+        #rule-hunter-results { border-collapse: collapse; width: 100%; font-size: 11px; }
+        #rule-hunter-results th, #rule-hunter-results td { border: 1px solid #ddd; padding: 5px; text-align: center; }
+        #rule-hunter-results th { background-color: #f2f2f2; }
+        #rule-hunter-results button { font-size: 11px; padding: 3px 6px; margin: 0; }
+        .highlighted-row td { background-color: #e8f5e9 !important; }
+        .button-row { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; }
+    </style>
+</head>
+<body>
+    <div id="main-container">
+        <canvas id="gameCanvas"></canvas>
+    </div>
+
+    <div id="all-controls-wrapper">
+        <!-- COLUMN 1: Main Controls & Palette -->
+        <div class="control-column">
+            <div class="control-group">
+                <h3>Controls</h3>
+                <div class="rule-input-group">
+                    <label for="speedSlider">Simulation Speed</label>
+                    <div class="slider-container">
+                        <input type="range" id="speedSlider" min="0" max="500" value="50" title="Delay between steps in ms. 0 is max speed.">
+                        <span id="speedValue">50ms</span>
+                    </div>
+                </div>
+                <button id="startStopBtn" title="Start or stop the simulation">Start</button>
+                <button id="stepBtn" title="Advance the simulation by a single step">Step</button>
+                <button id="clearBtn" title="Clear the entire grid">Clear</button>
+            </div>
+            <div class="control-group">
+                <h3>Generation</h3>
+                <div class="rule-input-group">
+                    <label for="densitySlider">Fill Density</label>
+                    <div class="slider-container">
+                        <input type="range" id="densitySlider" min="1" max="100" value="30" title="The percentage of the grid to be filled with cells.">
+                        <span id="densityValue">30%</span>
+                    </div>
+                </div>
+                <button id="randomFillBtn" title="Fill the grid with random cells at the specified density">Random Fill</button>
+            </div>
+            <div class="control-group">
+                <h3>Save / Load State</h3>
+                <button id="saveStateBtn" title="Save the current grid state and rules to a file">Save State</button>
+                <button id="loadStateBtn" title="Load state from a file">Load State</button>
+                <input type="file" id="fileInput" accept=".json" style="display: none;">
+            </div>
+            <div class="control-group">
+                <h3>Palette</h3>
+                <div id="palette"></div>
+            </div>
+        </div>
+
+        <!-- COLUMN 2: Rules -->
+        <div class="control-column">
+            <div class="control-group">
+                <h3>Game Rules</h3>
+                <div class="rule-input-group">
+                    <label for="ruleTypeSelector">Rule Type:</label>
+                    <select id="ruleTypeSelector" title="Choose the cell evolution logic">
+                        <option value="NC">1. Neighbor Count</option>
+                        <option value="AG">2. Aging</option>
+                    </select>
+                </div>
+                <div class="range-container">
+                    <div class="rule-input-group" style="flex: 1;">
+                        <label for="contributionCapInput">Neighbor Cap:</label>
+                        <input type="number" id="contributionCapInput" min="1" max="35" value="9">
+                    </div>
+                    <div class="rule-input-group" style="flex: 1;">
+                        <label for="maxAgeInput">Max Value/Age:</label>
+                        <input type="number" id="maxAgeInput" min="2" max="35" value="10">
+                    </div>
+                </div>
+                <div class="rule-input-group">
+                    <label>Survival Range (Sum):</label>
+                    <div class="range-container">
+                        <input type="number" id="minSurviveInput" min="0" value="2">
+                        <span>-</span>
+                        <input type="number" id="maxSurviveInput" min="0" value="3">
+                    </div>
+                </div>
+                <div class="rule-input-group">
+                    <label>Birth Range (Sum):</label>
+                    <div class="range-container">
+                        <input type="number" id="minBirthInput" min="0" value="3">
+                        <span>-</span>
+                        <input type="number" id="maxBirthInput" min="0" value="3">
+                    </div>
+                </div>
+                <div id="aging-rules">
+                    <div class="checkbox-container">
+                        <input type="checkbox" id="reincarnateCheckbox" checked>
+                        <label for="reincarnateCheckbox">Reincarnate at max age</label>
+                    </div>
+                </div>
+                <hr style="margin: 10px 0;">
+                <h4>Rule Generator</h4>
+                <div class="rule-input-group">
+                    <label for="generatorCapMaxInput">Max for Generator (Neighbor Cap):</label>
+                    <input type="number" id="generatorCapMaxInput" min="1" max="20" value="9" title="Sets the upper limit for generating 'Max. Neighbor Contribution'.">
+                </div>
+                <button id="generateRulesBtn" title="Generate new rules and run simulation immediately">Generate & Run</button>
+            </div>
+        </div>
+
+        <!-- COLUMN 3: Rule Hunter -->
+        <div class="control-column">
+            <div class="control-group">
+                <h3>Rule Hunter</h3>
+                <div class="range-container">
+                    <div class="rule-input-group" style="flex: 1;">
+                        <label for="hunterRuleType">Rule Type:</label>
+                        <select id="hunterRuleType">
+                            <option value="both">Both</option>
+                            <option value="NC">Neighbor Count</option>
+                            <option value="AG">Aging</option>
+                        </select>
+                    </div>
+                    <div class="rule-input-group" style="flex: 1;">
+                        <label for="hunterResultsLimit">Results Limit:</label>
+                        <input type="number" id="hunterResultsLimit" min="1" max="100" value="20">
+                    </div>
+                </div>
+                <div class="range-container">
+                    <div class="rule-input-group" style="flex: 1;">
+                        <label for="hunterStepsInput">Sim. Steps:</label>
+                        <input type="number" id="hunterStepsInput" min="10" value="200">
+                    </div>
+                    <div class="rule-input-group" style="flex: 1;">
+                        <label for="hunterMaxTestsInput">Max Tests:</label>
+                        <input type="number" id="hunterMaxTestsInput" min="100" value="1000">
+                    </div>
+                </div>
+                <div class="rule-input-group">
+                    <label>Viable Survival %:</label>
+                    <div class="range-container">
+                        <input type="number" id="minSurvivalPercentInput" min="0" max="100" value="5">
+                        <span>-</span>
+                        <input type="number" id="maxSurvivalPercentInput" min="0" max="100" value="15">
+                    </div>
+                </div>
+                 <div class="rule-input-group">
+                    <label>Max Value/Age Range:</label>
+                    <div class="range-container">
+                        <input type="number" id="hunterMinMaxAgeInput" min="2" max="35" value="5">
+                        <span>-</span>
+                        <input type="number" id="hunterMaxMaxAgeInput" min="2" max="35" value="25">
+                    </div>
+                </div>
+                <div class="rule-input-group">
+                    <label>Neighbor Cap Range:</label>
+                    <div class="range-container">
+                        <input type="number" id="hunterMinCapInput" min="1" max="35" value="1">
+                        <span>-</span>
+                        <input type="number" id="hunterMaxCapInput" min="1" max="35" value="9">
+                    </div>
+                </div>
+                <div class="rule-input-group">
+                    <label for="hunterGoalSelector">Hunter Goal:</label>
+                    <select id="hunterGoalSelector">
+                        <option value="maximize">Maximize Diversity</option>
+                        <option value="target">Target Diversity</option>
+                    </select>
+                </div>
+                <div id="hunter-target-group" class="rule-input-group">
+                    <label for="hunterTargetDiversityInput">Diversity Target:</label>
+                    <input type="number" id="hunterTargetDiversityInput" min="0" value="300">
+                </div>
+                <p id="hunter-status" style="font-size: 13px; text-align: center; margin: 5px 0;">Ready to hunt.</p>
+                <button id="hunterBtn">Start Hunter</button>
+                <div id="rule-hunter-results-container">
+                    <table id="rule-hunter-results">
+                        <thead><tr><th>Type</th><th>Cap</th><th>Srv</th><th>Brth</th><th>Age</th><th>R?</th><th>Div</th><th>Apply</th></tr></thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+                <div class="button-row" style="margin-top: 10px;">
+                    <button id="saveResultsBtn" title="Save hunter settings and results to a file" disabled>Save Results</button>
+                    <button id="loadResultsBtn" title="Load hunter results from a file">Load Results</button>
+                    <input type="file" id="hunterFileInput" accept=".json" style="display: none;">
+                </div>
+                <button id="copyResultsBtn" title="Copy hunter settings and results as JSON" disabled>Copy Results</button>
+            </div>
+        </div>
+    </div>
+
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    // --- CONSTANTS AND SETTINGS ---
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    const cellSize = 10;
+    const gridWidth = 60;
+    const gridHeight = 60;
+    const totalCells = gridWidth * gridHeight;
+    canvas.width = gridWidth * cellSize;
+    canvas.height = gridHeight * cellSize;
+
+    const colors = [
+        '#FFFFFF', '#FF4136', '#FF851B', '#FFDC00', '#2ECC40', '#0074D9', '#B10DC9', '#F012BE', '#7FDBFF', '#3D9970',
+        '#01FF70', '#85144b', '#F012BE', '#39CCCC', '#3D9970', '#111111', '#AAAAAA', '#DDDDDD', '#FF6347', '#4682B4',
+        '#9ACD32', '#DAA520', '#6A5ACD', '#FF4500', '#2E8B57', '#D2691E', '#DC143C', '#00FFFF', '#00008B', '#B8860B',
+        '#006400', '#8B008B', '#FF8C00', '#E9967A', '#8FBC8F', '#483D8B'
+    ];
+
+    // --- GAME STATE ---
+    let grid = createGrid();
+    let isRunning = false;
+    let simulationTimeoutId;
+    let simulationDelay = 50;
+    let currentColor = 1;
+    let lastAppliedRule = null;
+    
+    let rules = {
+        type: 'NC', contributionCap: 9, minSurvive: 2, maxSurvive: 3,
+        minBirth: 3, maxBirth: 3, maxAge: 10, reincarnate: true
+    };
+
+    // --- UI ELEMENTS ---
+    const ui = {
+        startStopBtn: document.getElementById('startStopBtn'),
+        stepBtn: document.getElementById('stepBtn'),
+        clearBtn: document.getElementById('clearBtn'),
+        speedSlider: document.getElementById('speedSlider'),
+        speedValue: document.getElementById('speedValue'),
+        randomFillBtn: document.getElementById('randomFillBtn'),
+        densitySlider: document.getElementById('densitySlider'),
+        densityValue: document.getElementById('densityValue'),
+        saveStateBtn: document.getElementById('saveStateBtn'),
+        loadStateBtn: document.getElementById('loadStateBtn'),
+        fileInput: document.getElementById('fileInput'),
+        paletteContainer: document.getElementById('palette'),
+        ruleTypeSelector: document.getElementById('ruleTypeSelector'),
+        contributionCapInput: document.getElementById('contributionCapInput'),
+        minSurviveInput: document.getElementById('minSurviveInput'),
+        maxSurviveInput: document.getElementById('maxSurviveInput'),
+        minBirthInput: document.getElementById('minBirthInput'),
+        maxBirthInput: document.getElementById('maxBirthInput'),
+        agingRulesContainer: document.getElementById('aging-rules'),
+        maxAgeInput: document.getElementById('maxAgeInput'),
+        reincarnateCheckbox: document.getElementById('reincarnateCheckbox'),
+        generateRulesBtn: document.getElementById('generateRulesBtn'),
+        generatorCapMaxInput: document.getElementById('generatorCapMaxInput'),
+        hunterBtn: document.getElementById('hunterBtn'),
+        hunterStatus: document.getElementById('hunter-status'),
+        hunterResultsBody: document.querySelector('#rule-hunter-results tbody'),
+        hunterRuleType: document.getElementById('hunterRuleType'),
+        hunterResultsLimit: document.getElementById('hunterResultsLimit'),
+        hunterStepsInput: document.getElementById('hunterStepsInput'),
+        hunterMaxTestsInput: document.getElementById('hunterMaxTestsInput'),
+        minSurvivalPercentInput: document.getElementById('minSurvivalPercentInput'),
+        maxSurvivalPercentInput: document.getElementById('maxSurvivalPercentInput'),
+        hunterMinMaxAgeInput: document.getElementById('hunterMinMaxAgeInput'),
+        hunterMaxMaxAgeInput: document.getElementById('hunterMaxMaxAgeInput'),
+        hunterMinCapInput: document.getElementById('hunterMinCapInput'),
+        hunterMaxCapInput: document.getElementById('hunterMaxCapInput'),
+        hunterGoalSelector: document.getElementById('hunterGoalSelector'),
+        hunterTargetGroup: document.getElementById('hunter-target-group'),
+        hunterTargetDiversityInput: document.getElementById('hunterTargetDiversityInput'),
+        copyResultsBtn: document.getElementById('copyResultsBtn'),
+        saveResultsBtn: document.getElementById('saveResultsBtn'),
+        loadResultsBtn: document.getElementById('loadResultsBtn'),
+        hunterFileInput: document.getElementById('hunterFileInput'),
+    };
+
+    // --- SIMULATION FUNCTIONS ---
+    function createGrid() { return Array(gridHeight).fill(null).map(() => Array(gridWidth).fill(0)); }
+    
+    function drawGrid() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        for (let y = 0; y < gridHeight; y++) {
+            for (let x = 0; x < gridWidth; x++) {
+                const cellValue = grid[y][x];
+                if (cellValue > 0) {
+                    ctx.fillStyle = colors[cellValue] || '#000000';
+                    ctx.fillRect(x * cellSize, y * cellSize, cellSize, cellSize);
+                }
+            }
+        }
+    }
+
+    function countNeighborsInDynamicRadius(x, y, maxAge, currentGrid) {
+        let count = 0;
+        const radius = maxAge < 10 ? 1 : (maxAge <= 25 ? 2 : 3);
+        for (let dy = -radius; dy <= radius; dy++) {
+            for (let dx = -radius; dx <= radius; dx++) {
+                const nx = (x + dx + gridWidth) % gridWidth;
+                const ny = (y + dy + gridHeight) % gridHeight;
+                if (currentGrid[ny][nx] > 0) {
+                    count++;
+                }
+            }
+        }
+        return count;
+    }
+
+    function update(currentGrid, currentRules) {
+        const newGrid = createGrid();
+        for (let y = 0; y < gridHeight; y++) {
+            for (let x = 0; x < gridWidth; x++) {
+                let neighborSum = 0;
+                for (let dy = -1; dy <= 1; dy++) {
+                    for (let dx = -1; dx <= 1; dx++) {
+                        if (dx === 0 && dy === 0) continue;
+                        const nx = (x + dx + gridWidth) % gridWidth;
+                        const ny = (y + dy + gridHeight) % gridHeight;
+                        const neighborValue = currentGrid[ny][nx];
+                        if (neighborValue > 0) {
+                            neighborSum += Math.min(neighborValue, currentRules.contributionCap);
+                        }
+                    }
+                }
+
+                const currentState = currentGrid[y][x];
+                let nextState = 0;
+                let isAlive = false;
+
+                if (currentState > 0) {
+                    if (neighborSum >= currentRules.minSurvive && neighborSum <= currentRules.maxSurvive) {
+                        isAlive = true;
+                    }
+                } else {
+                    if (neighborSum >= currentRules.minBirth && neighborSum <= currentRules.maxBirth) {
+                        isAlive = true;
+                    }
+                }
+
+                if (isAlive) {
+                    if (currentRules.type === 'NC') {
+                        const neighborCount = countNeighborsInDynamicRadius(x, y, currentRules.maxAge, currentGrid);
+                        nextState = Math.min(neighborCount, currentRules.maxAge);
+                        if (nextState === 0 && neighborCount > 0) nextState = 1;
+                    } else {
+                        nextState = (currentState > 0 ? currentState : 0) + 1;
+                        if (nextState > currentRules.maxAge) {
+                            nextState = currentRules.reincarnate ? 1 : 0;
+                        }
+                    }
+                } else {
+                    nextState = 0;
+                }
+                newGrid[y][x] = nextState;
+            }
+        }
+        return newGrid;
+    }
+
+    function gameLoop() {
+        if (!isRunning) return;
+        grid = update(grid, rules);
+        drawGrid();
+        simulationTimeoutId = setTimeout(gameLoop, simulationDelay);
+    }
+
+    function startSimulation() {
+        if (isRunning) return;
+        isRunning = true;
+        ui.startStopBtn.textContent = 'Stop';
+        gameLoop();
+    }
+
+    function stopSimulation() {
+        if (!isRunning) return;
+        isRunning = false;
+        clearTimeout(simulationTimeoutId);
+        ui.startStopBtn.textContent = 'Start';
+    }
+
+    function randomFill(targetGrid, maxVal) {
+        const density = parseInt(ui.densitySlider.value, 10) / 100;
+        for (let y = 0; y < gridHeight; y++) {
+            for (let x = 0; x < gridWidth; x++) {
+                targetGrid[y][x] = (Math.random() < density) ? (Math.floor(Math.random() * maxVal) + 1) : 0;
+            }
+        }
+    }
+
+    function applyAndRunNewRules(newRules) {
+        stopSimulation();
+        Object.assign(rules, newRules);
+        updateUIFromRules();
+        randomFill(grid, rules.maxAge);
+        drawGrid();
+        startSimulation();
+    }
+
+    // --- UI & RULE MANAGEMENT ---
+    function setupUI() {
+        ui.speedSlider.addEventListener('input', (e) => {
+            simulationDelay = parseInt(e.target.value, 10);
+            ui.speedValue.textContent = `${simulationDelay}ms`;
+        });
+
+        ui.ruleTypeSelector.addEventListener('change', (e) => {
+            rules.type = e.target.value;
+            ui.agingRulesContainer.style.visibility = rules.type === 'AG' ? 'visible' : 'hidden';
+        });
+        
+        const ruleInputs = ['contributionCap', 'minSurvive', 'maxSurvive', 'minBirth', 'maxBirth', 'maxAge'];
+        ruleInputs.forEach(key => {
+            const inputEl = ui[key + 'Input'];
+            inputEl.addEventListener('change', () => {
+                rules[key] = parseInt(inputEl.value, 10);
+                if (key === 'maxAge') updatePalette();
+            });
+        });
+        ui.reincarnateCheckbox.addEventListener('change', () => { rules.reincarnate = ui.reincarnateCheckbox.checked; });
+
+        ui.generateRulesBtn.addEventListener('click', () => {
+            const newRules = generateRules();
+            lastAppliedRule = newRules;
+            applyAndRunNewRules(newRules);
+        });
+        ui.randomFillBtn.addEventListener('click', () => { randomFill(grid, rules.maxAge); drawGrid(); });
+        ui.densitySlider.addEventListener('input', (e) => { ui.densityValue.textContent = `${e.target.value}%`; });
+        
+        // Hunter UI
+        ui.hunterBtn.addEventListener('click', toggleHunter);
+        ui.hunterGoalSelector.addEventListener('change', (e) => {
+            ui.hunterTargetGroup.style.visibility = e.target.value === 'target' ? 'visible' : 'hidden';
+        });
+        ui.copyResultsBtn.addEventListener('click', copyHunterResults);
+        ui.saveResultsBtn.addEventListener('click', saveHunterResults);
+        ui.loadResultsBtn.addEventListener('click', () => ui.hunterFileInput.click());
+        ui.hunterFileInput.addEventListener('change', (e) => { if (e.target.files.length > 0) { loadHunterResults(e.target.files[0]); } });
+    }
+
+    function updateUIFromRules() {
+        ui.ruleTypeSelector.value = rules.type;
+        ui.contributionCapInput.value = rules.contributionCap;
+        ui.minSurviveInput.value = rules.minSurvive;
+        ui.maxSurviveInput.value = rules.maxSurvive;
+        ui.minBirthInput.value = rules.minBirth;
+        ui.maxBirthInput.value = rules.maxBirth;
+        ui.maxAgeInput.value = rules.maxAge;
+        ui.reincarnateCheckbox.checked = rules.reincarnate;
+        ui.agingRulesContainer.style.visibility = rules.type === 'AG' ? 'visible' : 'hidden';
+        updatePalette();
+    }
+
+    function updatePalette() {
+        ui.paletteContainer.innerHTML = '';
+        const maxPaletteItems = 35;
+        for (let i = 1; i <= Math.min(rules.maxAge, maxPaletteItems); i++) {
+            const box = document.createElement('div');
+            box.className = 'color-box';
+            box.style.backgroundColor = colors[i] || '#000';
+            box.dataset.color = i;
+            box.textContent = i;
+            if (i === currentColor) box.classList.add('active');
+            box.addEventListener('click', () => {
+                currentColor = i;
+                updatePalette();
+            });
+            ui.paletteContainer.appendChild(box);
+        }
+    }
+
+    function generateRules(forcedType = 'random', ageRange = null, capRange = null) {
+        const newRules = {};
+        let cap;
+        if (capRange) {
+            cap = Math.floor(Math.random() * (capRange.max - capRange.min + 1)) + capRange.min;
+        } else {
+            const generatorMax = parseInt(ui.generatorCapMaxInput.value, 10);
+            cap = Math.floor(Math.random() * generatorMax) + 1;
+        }
+        
+        const maxPossibleSum = 8 * cap;
+        const minB = Math.floor(Math.random() * (cap * 3)) + Math.floor(cap * 0.5);
+        const maxB = minB + Math.floor(Math.random() * cap * 2);
+        const minS = Math.max(1, minB - Math.floor(Math.random() * cap * 1.5));
+        const maxS = minS + Math.floor(Math.random() * cap * 2);
+
+        newRules.contributionCap = cap;
+        newRules.minBirth = Math.min(minB, maxPossibleSum);
+        newRules.maxBirth = Math.min(maxB, maxPossibleSum);
+        newRules.minSurvive = Math.min(minS, maxPossibleSum);
+        newRules.maxSurvive = Math.min(maxS, maxPossibleSum);
+        
+        if (ageRange) {
+            newRules.maxAge = Math.floor(Math.random() * (ageRange.max - ageRange.min + 1)) + ageRange.min;
+        } else {
+            newRules.maxAge = Math.floor(Math.random() * 25) + 5;
+        }
+        
+        newRules.reincarnate = Math.random() > 0.5;
+        
+        if (forcedType === 'NC' || forcedType === 'AG') {
+            newRules.type = forcedType;
+        } else {
+            newRules.type = Math.random() > 0.5 ? 'AG' : 'NC';
+        }
+        return newRules;
+    }
+
+    // --- RULE HUNTER ---
+    let isHunting = false;
+    let rulesTestedCount = 0;
+    let totalViableRulesFound = 0;
+    let foundRules = []; // Stores { rule, diversity, score }
+
+    function toggleHunter() {
+        isHunting = !isHunting;
+        if (isHunting) {
+            ui.hunterBtn.textContent = 'Stop Hunter';
+            rulesTestedCount = 0;
+            totalViableRulesFound = 0;
+            foundRules = [];
+            ui.hunterResultsBody.innerHTML = '';
+            ui.copyResultsBtn.disabled = true;
+            ui.saveResultsBtn.disabled = true;
+            huntForRules();
+        } else {
+            ui.hunterBtn.textContent = 'Start Hunter';
+            ui.hunterStatus.textContent = `Stopped. Found ${totalViableRulesFound} viable rules.`;
+        }
+    }
+
+    function huntForRules() {
+        if (!isHunting || rulesTestedCount >= parseInt(ui.hunterMaxTestsInput.value, 10)) {
+            isHunting = false;
+            ui.hunterBtn.textContent = 'Start Hunter';
+            ui.hunterStatus.textContent = `Finished. Found ${totalViableRulesFound} viable rules.`;
+            if (foundRules.length > 0) {
+                ui.copyResultsBtn.disabled = false;
+                ui.saveResultsBtn.disabled = false;
+            }
+            return;
+        }
+
+        rulesTestedCount++;
+        const forcedType = ui.hunterRuleType.value;
+        const ageRange = {
+            min: parseInt(ui.hunterMinMaxAgeInput.value, 10),
+            max: parseInt(ui.hunterMaxMaxAgeInput.value, 10)
+        };
+        const capRange = {
+            min: parseInt(ui.hunterMinCapInput.value, 10),
+            max: parseInt(ui.hunterMaxCapInput.value, 10)
+        };
+        const testRules = generateRules(forcedType, ageRange, capRange);
+        let testGrid = createGrid();
+        randomFill(testGrid, testRules.maxAge);
+
+        const simulationSteps = parseInt(ui.hunterStepsInput.value, 10);
+        const historyStepsToKeep = 5;
+        let gridHistory = [];
+
+        for (let i = 0; i < simulationSteps; i++) {
+            testGrid = update(testGrid, testRules);
+            if (i >= simulationSteps - historyStepsToKeep) {
+                gridHistory.push(testGrid.map(row => [...row]));
+            }
+        }
+
+        const finalCount = testGrid.flat().filter(cell => cell > 0).length;
+        const finalPercentage = (finalCount / totalCells) * 100;
+        const minPercent = parseInt(ui.minSurvivalPercentInput.value, 10);
+        const maxPercent = parseInt(ui.maxSurvivalPercentInput.value, 10);
+
+        if (finalPercentage >= minPercent && finalPercentage <= maxPercent) {
+            totalViableRulesFound++;
+            
+            let diversity = 0;
+            if (gridHistory.length === historyStepsToKeep) {
+                const finalGrid = gridHistory[gridHistory.length - 1];
+                const diversityScores = [];
+                for (let i = 0; i < gridHistory.length - 1; i++) {
+                    diversityScores.push(calculateDiversity(gridHistory[i], finalGrid));
+                }
+                diversity = Math.min(...diversityScores);
+            }
+
+            const goal = ui.hunterGoalSelector.value;
+            let score;
+            if (goal === 'maximize') {
+                score = diversity;
+            } else { // 'target'
+                const target = parseInt(ui.hunterTargetDiversityInput.value, 10);
+                score = Math.abs(diversity - target);
+            }
+
+            const newEntry = { rule: testRules, diversity: diversity, score: score };
+            const resultsLimit = parseInt(ui.hunterResultsLimit.value, 10);
+
+            foundRules.push(newEntry);
+            
+            // Sort according to goal: descending for maximize, ascending for target
+            if (goal === 'maximize') {
+                foundRules.sort((a, b) => b.score - a.score);
+            } else {
+                foundRules.sort((a, b) => a.score - b.score);
+            }
+
+            if (foundRules.length > resultsLimit) {
+                foundRules.pop(); // Remove the worst entry
+            }
+            
+            redrawHunterTable();
+        }
+        
+        const successRate = rulesTestedCount > 0 ? (totalViableRulesFound / rulesTestedCount * 100).toFixed(2) : 0;
+        const worstDiversityInList = foundRules.length > 0 ? foundRules[foundRules.length - 1].diversity.toFixed(0) : 'N/A';
+        ui.hunterStatus.innerHTML = `Tested: ${rulesTestedCount} | Found: ${totalViableRulesFound} | Rate: ${successRate}%<br>Worst Div in list: ${worstDiversityInList}`;
+
+        setTimeout(huntForRules, 0);
+    }
+
+    function calculateDiversity(gridA, gridB) {
+        let differences = 0;
+        for (let y = 0; y < gridHeight; y++) {
+            for (let x = 0; x < gridWidth; x++) {
+                if ((gridA[y][x] > 0) !== (gridB[y][x] > 0)) {
+                    differences++;
+                }
+            }
+        }
+        return differences;
+    }
+
+    function redrawHunterTable() {
+        ui.hunterResultsBody.innerHTML = '';
+        foundRules.forEach(found => {
+            const ruleData = found.rule;
+            const row = ui.hunterResultsBody.insertRow();
+            if (lastAppliedRule && JSON.stringify(ruleData) === JSON.stringify(lastAppliedRule)) {
+                row.classList.add('highlighted-row');
+            }
+            const reincarnateText = ruleData.type === 'AG' ? (ruleData.reincarnate ? 'Y' : 'N') : '—';
+            row.innerHTML = `
+                <td>${ruleData.type}</td>
+                <td>${ruleData.contributionCap}</td>
+                <td>${ruleData.minSurvive}-${ruleData.maxSurvive}</td>
+                <td>${ruleData.minBirth}-${ruleData.maxBirth}</td>
+                <td>${ruleData.maxAge}</td>
+                <td>${reincarnateText}</td>
+                <td>${found.diversity.toFixed(0)}</td>
+                <td><button class="apply-rule-btn">Apply</button></td>
+            `;
+            row.querySelector('.apply-rule-btn').addEventListener('click', () => {
+                lastAppliedRule = ruleData;
+                applyAndRunNewRules(ruleData);
+                redrawHunterTable();
+            });
+        });
+    }
+
+    function getHunterDataAsObject() {
+        const hunterSettings = {
+            simulationSteps: parseInt(ui.hunterStepsInput.value, 10),
+            maxTests: parseInt(ui.hunterMaxTestsInput.value, 10),
+            minSurvivalPercent: parseInt(ui.minSurvivalPercentInput.value, 10),
+            maxSurvivalPercent: parseInt(ui.maxSurvivalPercentInput.value, 10),
+            minMaxAge: parseInt(ui.hunterMinMaxAgeInput.value, 10),
+            maxMaxAge: parseInt(ui.hunterMaxMaxAgeInput.value, 10),
+            minCap: parseInt(ui.hunterMinCapInput.value, 10),
+            maxCap: parseInt(ui.hunterMaxCapInput.value, 10),
+            hunterGoal: ui.hunterGoalSelector.value,
+            targetDiversity: parseInt(ui.hunterTargetDiversityInput.value, 10),
+            ruleTypeFilter: ui.hunterRuleType.value,
+            resultsLimit: parseInt(ui.hunterResultsLimit.value, 10),
+        };
+        return { settings: hunterSettings, results: foundRules };
+    }
+
+    function copyHunterResults() {
+        const dataToCopy = getHunterDataAsObject();
+        const jsonString = JSON.stringify(dataToCopy, null, 2);
+        navigator.clipboard.writeText(jsonString).then(() => {
+            const originalText = ui.copyResultsBtn.textContent;
+            ui.copyResultsBtn.textContent = 'Copied!';
+            setTimeout(() => { ui.copyResultsBtn.textContent = originalText; }, 2000);
+        }).catch(err => {
+            console.error('Failed to copy results: ', err);
+            alert('Failed to copy results to clipboard.');
+        });
+    }
+
+    function saveHunterResults() {
+        const dataToSave = getHunterDataAsObject();
+        const blob = new Blob([JSON.stringify(dataToSave, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `gol_hunter_results_${new Date().toISOString().slice(0,19).replace('T','_').replace(/:/g,'-')}.json`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    }
+
+    function loadHunterResults(file) {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            try {
+                const data = JSON.parse(e.target.result);
+                if (!data.settings || !data.results) {
+                    alert('Error: Invalid hunter results file format.');
+                    return;
+                }
+                // Load settings
+                const s = data.settings;
+                ui.hunterStepsInput.value = s.simulationSteps || 200;
+                ui.hunterMaxTestsInput.value = s.maxTests || 1000;
+                ui.minSurvivalPercentInput.value = s.minSurvivalPercent || 5;
+                ui.maxSurvivalPercentInput.value = s.maxSurvivalPercent || 15;
+                ui.hunterMinMaxAgeInput.value = s.minMaxAge || 5;
+                ui.hunterMaxMaxAgeInput.value = s.maxMaxAge || 25;
+                ui.hunterMinCapInput.value = s.minCap || 1;
+                ui.hunterMaxCapInput.value = s.maxCap || 9;
+                ui.hunterGoalSelector.value = s.hunterGoal || 'maximize';
+                ui.hunterTargetDiversityInput.value = s.targetDiversity || 300;
+                ui.hunterRuleType.value = s.ruleTypeFilter || 'both';
+                ui.hunterResultsLimit.value = s.resultsLimit || 20;
+
+                // Update UI visibility based on loaded goal
+                ui.hunterTargetGroup.style.visibility = ui.hunterGoalSelector.value === 'target' ? 'visible' : 'hidden';
+
+                // Load results
+                foundRules = data.results;
+                redrawHunterTable();
+                ui.copyResultsBtn.disabled = false;
+                ui.saveResultsBtn.disabled = false;
+                alert('Hunter results loaded successfully!');
+            } catch (error) {
+                alert('Error reading file: ' + error.message);
+            }
+        };
+        reader.readAsText(file);
+    }
+
+    // --- SAVE & LOAD STATE ---
+    function valueToChar(value) {
+        if (value === 0) return '0';
+        if (value >= 1 && value <= 9) return String(value);
+        if (value >= 10 && value <= 35) return String.fromCharCode(value - 10 + 97);
+        return '0';
+    }
+    function charToValue(char) {
+        if (char === '0') return 0;
+        const num = parseInt(char, 10);
+        if (!isNaN(num) && num >= 1 && num <= 9) return num;
+        const charCode = char.charCodeAt(0);
+        if (charCode >= 97 && charCode <= 122) return charCode - 97 + 10;
+        return 0;
+    }
+    function saveState() {
+        let gridString = '';
+        for (let y = 0; y < gridHeight; y++) {
+            for (let x = 0; x < gridWidth; x++) {
+                gridString += valueToChar(grid[y][x]);
+            }
+        }
+        const state = { rules, grid: gridString, gridWidth, gridHeight };
+        const blob = new Blob([JSON.stringify(state, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `gol_state_${new Date().toISOString().slice(0,19).replace('T','_').replace(/:/g,'-')}.json`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    }
+    function loadState(file) {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            try {
+                const state = JSON.parse(e.target.result);
+                if (!state.rules || !state.grid || state.gridWidth !== gridWidth || state.gridHeight !== gridHeight) {
+                    alert('Error: Invalid file format or grid dimensions do not match.');
+                    return;
+                }
+                Object.assign(rules, state.rules);
+                updateUIFromRules();
+                let index = 0;
+                for (let y = 0; y < gridHeight; y++) {
+                    for (let x = 0; x < gridWidth; x++) {
+                        grid[y][x] = charToValue(state.grid[index++]);
+                    }
+                }
+                drawGrid();
+                alert('State loaded successfully!');
+            } catch (error) {
+                alert('Error reading file: ' + error.message);
+            }
+        };
+        reader.readAsText(file);
+    }
+
+    // --- EVENT HANDLERS ---
+    ui.startStopBtn.addEventListener('click', () => {
+        if (isRunning) {
+            stopSimulation();
+        } else {
+            startSimulation();
+        }
+    });
+    ui.stepBtn.addEventListener('click', () => { if (!isRunning) { grid = update(grid, rules); drawGrid(); } });
+    ui.clearBtn.addEventListener('click', () => { grid = createGrid(); drawGrid(); });
+    
+    ui.saveStateBtn.addEventListener('click', saveState);
+    ui.loadStateBtn.addEventListener('click', () => ui.fileInput.click());
+    ui.fileInput.addEventListener('change', (e) => { if (e.target.files.length > 0) { loadState(e.target.files[0]); } });
+
+    canvas.addEventListener('click', (e) => {
+        if (isRunning) return;
+        const rect = canvas.getBoundingClientRect();
+        const x = Math.floor((e.clientX - rect.left) / cellSize);
+        const y = Math.floor((e.clientY - rect.top) / cellSize);
+        if (x >= 0 && x < gridWidth && y >= 0 && y < gridHeight) {
+            grid[y][x] = grid[y][x] > 0 ? 0 : currentColor;
+            drawGrid();
+        }
+    });
+
+    // --- INITIALIZATION ---
+    setupUI();
+    updateUIFromRules();
+    drawGrid();
+});
+</script>
+</body>
+</html>
