@@ -122,7 +122,6 @@
     <div id="all-controls-wrapper">
         <!-- COLUMN 1: Main Controls & Palette -->
         <div class="control-column">
-            <!-- ... (содержимое без изменений) ... -->
             <div class="control-group">
                 <h3>Controls</h3>
                 <div class="rule-input-group">
@@ -166,7 +165,6 @@
                 <div class="rule-input-group">
                     <label for="ruleTypeSelector">Rule Type:</label>
                     <select id="ruleTypeSelector" title="Choose the cell evolution logic">
-                        <!-- --- ИЗМЕНЕНИЕ 1: Добавлена подсказка для Neighbor Count --- -->
                         <option value="NC" title="Новое значение клетки = кол-во живых клеток в квадрате, размер которого зависит от Max Value (3x3, 5x5 или 7x7), включая саму клетку.">1. Neighbor Count</option>
                         <option value="AG">2. Aging</option>
                     </select>
@@ -219,6 +217,13 @@
                 <hr style="margin: 10px 0;">
                 <h4>Rule Generator</h4>
                 <div class="rule-input-group">
+                    <label for="generatorTypeSelector">Generator Type:</label>
+                    <select id="generatorTypeSelector" title="Choose the rule generation algorithm">
+                        <option value="random">1. Standard Random</option>
+                        <option value="optimized">2. Optimized (Based on Analysis)</option>
+                    </select>
+                </div>
+                <div class="rule-input-group">
                     <label for="generatorCapMaxInput">Max for Generator (Neighbor Cap):</label>
                     <input type="number" id="generatorCapMaxInput" min="1" max="49" value="9" title="Sets the upper limit for generating 'Max. Neighbor Contribution'.">
                 </div>
@@ -228,9 +233,9 @@
 
         <!-- COLUMN 3: Rule Hunter -->
         <div class="control-column">
-            <!-- ... (содержимое без изменений) ... -->
             <div class="control-group">
                 <h3>Rule Hunter</h3>
+                <!-- --- ИЗМЕНЕНИЕ 1: Добавлен независимый переключатель генератора для Rule Hunter --- -->
                 <div class="range-container">
                     <div class="rule-input-group" style="flex: 1;">
                         <label for="hunterRuleType">Rule Type:</label>
@@ -241,8 +246,11 @@
                         </select>
                     </div>
                     <div class="rule-input-group" style="flex: 1;">
-                        <label for="hunterResultsLimit">Results Limit:</label>
-                        <input type="number" id="hunterResultsLimit" min="1" max="100" value="20">
+                        <label for="hunterGeneratorTypeSelector">Generator:</label>
+                        <select id="hunterGeneratorTypeSelector" title="Choose the rule generation algorithm for the hunter">
+                            <option value="random">Standard</option>
+                            <option value="optimized">Optimized</option>
+                        </select>
                     </div>
                 </div>
                 <div class="range-container">
@@ -286,12 +294,18 @@
                         <input type="number" id="hunterMaxCapInput" min="1" max="49" value="9">
                     </div>
                 </div>
-                <div class="rule-input-group">
-                    <label for="hunterGoalSelector">Hunter Goal:</label>
-                    <select id="hunterGoalSelector">
-                        <option value="maximize">Maximize Diversity</option>
-                        <option value="target">Target Diversity</option>
-                    </select>
+                <div class="range-container">
+                    <div class="rule-input-group" style="flex: 1;">
+                        <label for="hunterGoalSelector">Hunter Goal:</label>
+                        <select id="hunterGoalSelector">
+                            <option value="maximize">Maximize Diversity</option>
+                            <option value="target">Target Diversity</option>
+                        </select>
+                    </div>
+                     <div class="rule-input-group" style="flex: 1;">
+                        <label for="hunterResultsLimit">Results Limit:</label>
+                        <input type="number" id="hunterResultsLimit" min="1" max="100" value="20">
+                    </div>
                 </div>
                 <div id="hunter-target-group" class="rule-input-group">
                     <label for="hunterTargetDiversityInput">Diversity Target:</label>
@@ -378,7 +392,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // --- ИЗМЕНЕНИЕ 2: Новая функция для специального подсчета соседей в режиме NC ---
     function getSpecialNeighborCount(x, y, currentGrid, maxAge) {
         let radius;
         if (maxAge <= 9) {
@@ -404,12 +417,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function update(currentGrid, currentRules) {
         const newGrid = createGrid();
-        // Шаг 1: Определяем соседей для правил выживания/рождения
         const survivalOffsets = NEIGHBOR_OFFSETS[currentRules.neighborhoodType] || NEIGHBOR_OFFSETS['8_M'];
 
         for (let y = 0; y < gridHeight; y++) {
             for (let x = 0; x < gridWidth; x++) {
-                // --- Расчет для выживания/рождения (общий для всех режимов) ---
                 let neighborSum = 0;
                 for (const [dx, dy] of survivalOffsets) {
                     const nx = (x + dx + gridWidth) % gridWidth;
@@ -424,25 +435,21 @@ document.addEventListener('DOMContentLoaded', () => {
                 let nextState = 0;
                 let isAlive = false;
 
-                // --- Проверка условий выживания/рождения ---
-                if (currentState > 0) { // Клетка жива
+                if (currentState > 0) {
                     if (neighborSum >= currentRules.minSurvive && neighborSum <= currentRules.maxSurvive) {
                         isAlive = true;
                     }
-                } else { // Клетка мертва
+                } else {
                     if (neighborSum >= currentRules.minBirth && neighborSum <= currentRules.maxBirth) {
                         isAlive = true;
                     }
                 }
 
-                // --- Определение нового значения клетки, если она жива ---
                 if (isAlive) {
                     if (currentRules.type === 'NC') {
-                        // --- ИЗМЕНЕНИЕ 3: Используем новую логику подсчета для NC ---
                         nextState = getSpecialNeighborCount(x, y, currentGrid, currentRules.maxAge);
-                        // Убедимся, что значение не превышает максимум (хотя по логике не должно)
                         nextState = Math.min(nextState, currentRules.maxAge);
-                        if (nextState === 0) nextState = 1; // Если все вокруг умерли, но клетка выжила, она становится 1
+                        if (nextState === 0) nextState = 1;
                     } else { // 'AG'
                         nextState = (currentState > 0 ? currentState : 0) + 1;
                         if (nextState > currentRules.maxAge) {
@@ -458,7 +465,6 @@ document.addEventListener('DOMContentLoaded', () => {
         return newGrid;
     }
 
-    // ... Остальной код JavaScript остается без изменений ...
     function gameLoop() {
         if (!isRunning) return;
         grid = update(grid, rules);
@@ -520,11 +526,28 @@ document.addEventListener('DOMContentLoaded', () => {
         ui.reincarnateCheckbox.addEventListener('change', () => { rules.reincarnate = ui.reincarnateCheckbox.checked; });
 
         ui.generateRulesBtn.addEventListener('click', () => {
-            const newRules = generateRules();
-            newRules.neighborhoodType = ui.neighborhoodTypeSelector.value;
+            const generatorType = ui.generatorTypeSelector.value;
+            let newRules;
+
+            if (generatorType === 'optimized') {
+                const maxAge = parseInt(ui.maxAgeInput.value, 10);
+                const cap = parseInt(ui.contributionCapInput.value, 10);
+                const neighborhoodClass = parseInt(ui.neighborhoodTypeSelector.value, 10);
+                
+                if (![4, 8, 12].includes(neighborhoodClass)) {
+                    alert("Optimized generator requires a 4, 8, or 12 neighborhood type to be selected.");
+                    return;
+                }
+                newRules = generateRulesLikeOptimized(maxAge, cap, neighborhoodClass);
+            } else { // 'random'
+                newRules = generateRules();
+                newRules.neighborhoodType = ui.neighborhoodTypeSelector.value;
+            }
+            
             lastAppliedRule = newRules;
             applyAndRunNewRules(newRules);
         });
+
         ui.randomFillBtn.addEventListener('click', () => { randomFill(grid, rules.maxAge, parseInt(ui.densitySlider.value, 10)); drawGrid(); });
         ui.densitySlider.addEventListener('input', (e) => { ui.densityValue.textContent = `${e.target.value}%`; });
         
@@ -572,6 +595,74 @@ document.addEventListener('DOMContentLoaded', () => {
             });
             ui.palette.appendChild(box);
         }
+    }
+
+    function generateRulesLikeOptimized(maxAge, contributionCap, neighborhoods) {
+        const neighbors = Number(neighborhoods);
+        const neighMap = {
+            4: ['4_VN', '4_D'],
+            8: ['8_M', '8_XC', '8_XD'],
+            12: ['12_C', '12_D', '12_R']
+        };
+        const allowed = neighMap[neighbors] || neighMap[8];
+        const neighborhoodType = allowed[Math.floor(Math.random() * allowed.length)];
+
+        const type = Math.random() < 0.5 ? 'NC' : 'AG';
+        const T = Math.max(1, neighbors * contributionCap);
+
+        const bands = {
+            "4": {
+            "NC": { mb:[0.11,0.18], xb:[0.29,0.37], ms:[0.08,0.15], xs:[0.22,0.32] },
+            "AG": { mb:[0.10,0.18], xb:[0.27,0.34], ms:[0.06,0.14], xs:[0.20,0.32] }
+            },
+            "8": {
+            "NC": { mb:[0.13,0.20], xb:[0.32,0.40], ms:[0.03,0.09], xs:[0.20,0.30] },
+            "AG": { mb:[0.08,0.14], xb:[0.26,0.33], ms:[0.01,0.04], xs:[0.08,0.12] }
+            },
+            "12": {
+            "NC": { mb:[0.13,0.20], xb:[0.33,0.40], ms:[0.06,0.12], xs:[0.24,0.32] },
+            "AG": { mb:[0.07,0.11], xb:[0.26,0.31], ms:[0.01,0.03], xs:[0.08,0.12] }
+            }
+        };
+
+        const b = bands[String(neighbors)][type];
+
+        function jitter(minF, maxF, k = 0.15) {
+            const span = maxF - minF;
+            let f = minF + Math.random() * span;
+            const shift = (Math.random() - 0.5) * span * k * 2;
+            f = Math.min(maxF, Math.max(minF, f + shift));
+            return f;
+        }
+        const pickInt = (minF, maxF) => Math.round(jitter(minF, maxF) * T);
+        const clampT = v => Math.max(0, Math.min(v, T));
+
+        let minBirth = pickInt(b.mb[0], b.mb[1]);
+        let maxBirth = pickInt(b.xb[0], b.xb[1]);
+        let minSurvive = pickInt(b.ms[0], b.ms[1]);
+        let maxSurvive = pickInt(b.xs[0], b.xs[1]);
+
+        minBirth = clampT(minBirth);
+        maxBirth = clampT(Math.max(maxBirth, minBirth + 1));
+
+        if (maxSurvive > maxBirth) maxSurvive = Math.floor(0.9 * maxBirth);
+        if (minSurvive > minBirth) minSurvive = Math.floor(0.9 * minBirth);
+
+        minSurvive = clampT(minSurvive);
+        maxSurvive = clampT(Math.max(maxSurvive, minSurvive + 1));
+
+        if (maxBirth - minBirth < Math.max(2, Math.round(0.05 * T))) {
+            maxBirth = clampT(minBirth + Math.max(2, Math.round(0.08 * T)));
+        }
+        if (maxSurvive - minSurvive < Math.max(2, Math.round(0.04 * T))) {
+            maxSurvive = clampT(minSurvive + Math.max(2, Math.round(0.06 * T)));
+        }
+
+        return {
+            neighborhoodType, contributionCap, minBirth, maxBirth,
+            minSurvive, maxSurvive, maxAge,
+            reincarnate: Math.random() < 0.5, type
+        };
     }
 
     function generateRules(forcedType = 'random', ageRange = null, capRange = null, neighborhoodTypes = null) {
@@ -655,21 +746,53 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         rulesTestedCount++;
-        const forcedType = ui.hunterRuleType.value;
+        
+        // --- ИЗМЕНЕНИЕ 2: Логика Rule Hunter теперь использует свой собственный переключатель генератора ---
+        const generatorType = ui.hunterGeneratorTypeSelector.value;
         const ageRange = { min: parseInt(ui.hunterMinMaxAgeInput.value, 10), max: parseInt(ui.hunterMaxMaxAgeInput.value, 10) };
         const capRange = { min: parseInt(ui.hunterMinCapInput.value, 10), max: parseInt(ui.hunterMaxCapInput.value, 10) };
         
-        const allowedNeighborhoods = [];
-        if (ui.hunterUse4.checked) { allowedNeighborhoods.push('4_VN', '4_D'); }
-        if (ui.hunterUse8.checked) { allowedNeighborhoods.push('8_M', '8_XC', '8_XD'); }
-        if (ui.hunterUse12.checked) { allowedNeighborhoods.push('12_C', '12_D', '12_R'); }
-        if (allowedNeighborhoods.length === 0) {
-            alert("Please select at least one neighborhood type to test in Rule Hunter.");
-            toggleHunter();
-            return;
-        }
+        let testRules;
 
-        const testRules = generateRules(forcedType, ageRange, capRange, allowedNeighborhoods);
+        if (generatorType === 'optimized') {
+            const allowedClasses = [];
+            if (ui.hunterUse4.checked) allowedClasses.push(4);
+            if (ui.hunterUse8.checked) allowedClasses.push(8);
+            if (ui.hunterUse12.checked) allowedClasses.push(12);
+            
+            if (allowedClasses.length === 0) {
+                alert("Please select at least one neighborhood class (4, 8, or 12) to test in Rule Hunter.");
+                toggleHunter();
+                return;
+            }
+
+            const neighborhoodClass = allowedClasses[Math.floor(Math.random() * allowedClasses.length)];
+            const maxAge = Math.floor(Math.random() * (ageRange.max - ageRange.min + 1)) + ageRange.min;
+            const cap = Math.floor(Math.random() * (capRange.max - capRange.min + 1)) + capRange.min;
+
+            testRules = generateRulesLikeOptimized(maxAge, cap, neighborhoodClass);
+            
+            const forcedType = ui.hunterRuleType.value;
+            if (forcedType !== 'both' && testRules.type !== forcedType) {
+                 setTimeout(huntForRules, 0);
+                 return;
+            }
+
+        } else { // 'random'
+            const forcedType = ui.hunterRuleType.value;
+            const allowedNeighborhoods = [];
+            if (ui.hunterUse4.checked) { allowedNeighborhoods.push('4_VN', '4_D'); }
+            if (ui.hunterUse8.checked) { allowedNeighborhoods.push('8_M', '8_XC', '8_XD'); }
+            if (ui.hunterUse12.checked) { allowedNeighborhoods.push('12_C', '12_D', '12_R'); }
+            
+            if (allowedNeighborhoods.length === 0) {
+                alert("Please select at least one neighborhood type to test in Rule Hunter.");
+                toggleHunter();
+                return;
+            }
+            testRules = generateRules(forcedType, ageRange, capRange, allowedNeighborhoods);
+        }
+        
         let testGrid = createGrid();
         
         const checkpoints = getHunterCheckpoints();
