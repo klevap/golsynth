@@ -7,6 +7,7 @@
     <style>
         :root {
             --control-width: 320px;
+            --hunter-control-width: 384px; 
         }
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
@@ -30,7 +31,7 @@
         
         #all-controls-wrapper {
             display: grid;
-            grid-template-columns: repeat(3, var(--control-width));
+            grid-template-columns: var(--control-width) var(--control-width) var(--hunter-control-width);
             gap: 15px;
             align-items: start;
         }
@@ -92,7 +93,7 @@
         .checkbox-container { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
         .checkbox-container input { width: auto; }
         .checkbox-container label { margin-bottom: 0; font-weight: normal; font-size: 13px; }
-        #aging-rules, #hunter-target-group { visibility: hidden; } /* Use visibility to prevent layout jump */
+        #aging-rules, #hunter-target-group { visibility: hidden; }
         .slider-container { display: flex; align-items: center; gap: 8px; }
         .slider-container input { flex-grow: 1; }
 
@@ -103,6 +104,14 @@
         #rule-hunter-results button { font-size: 11px; padding: 3px 6px; margin: 0; }
         .highlighted-row td { background-color: #e8f5e9 !important; }
         .button-row { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; }
+
+        .checkpoint-row { display: flex; gap: 5px; align-items: center; margin-bottom: 5px; }
+        .checkpoint-row label { flex: 0 0 115px; font-size: 12px; text-align: right; margin-right: 5px; }
+        .checkpoint-row input { text-align: center; }
+        .checkpoint-row .step-input { flex: 2 1 60px; }
+        .checkpoint-row .percent-input { flex: 1 1 50px; }
+        .checkpoint-row button { width: 30px; padding: 4px; font-size: 12px; background-color: #f44336; flex-shrink: 0; }
+        #add-checkpoint-btn { background-color: #2196F3; margin-top: 5px; }
     </style>
 </head>
 <body>
@@ -113,6 +122,7 @@
     <div id="all-controls-wrapper">
         <!-- COLUMN 1: Main Controls & Palette -->
         <div class="control-column">
+            <!-- ... (содержимое без изменений) ... -->
             <div class="control-group">
                 <h3>Controls</h3>
                 <div class="rule-input-group">
@@ -156,18 +166,32 @@
                 <div class="rule-input-group">
                     <label for="ruleTypeSelector">Rule Type:</label>
                     <select id="ruleTypeSelector" title="Choose the cell evolution logic">
-                        <option value="NC">1. Neighbor Count</option>
+                        <!-- --- ИЗМЕНЕНИЕ 1: Добавлена подсказка для Neighbor Count --- -->
+                        <option value="NC" title="Новое значение клетки = кол-во живых клеток в квадрате, размер которого зависит от Max Value (3x3, 5x5 или 7x7), включая саму клетку.">1. Neighbor Count</option>
                         <option value="AG">2. Aging</option>
+                    </select>
+                </div>
+                <div class="rule-input-group">
+                    <label for="neighborhoodTypeSelector">Neighborhood:</label>
+                    <select id="neighborhoodTypeSelector" title="Определяет соседей для правил выживания/рождения (для обоих режимов)">
+                        <option value="4_VN">4 Neighbors (Cross)</option>
+                        <option value="4_D">4 Neighbors (Diagonal)</option>
+                        <option value="8_M" selected>8 Neighbors (Square)</option>
+                        <option value="8_XC">8 Neighbors (Large Cross)</option>
+                        <option value="8_XD">8 Neighbors (Large Diagonal)</option>
+                        <option value="12_C">12 Neighbors (Outer Cross)</option>
+                        <option value="12_D">12 Neighbors (Outer Diagonal)</option>
+                        <option value="12_R">12 Neighbors (Rings)</option>
                     </select>
                 </div>
                 <div class="range-container">
                     <div class="rule-input-group" style="flex: 1;">
                         <label for="contributionCapInput">Neighbor Cap:</label>
-                        <input type="number" id="contributionCapInput" min="1" max="35" value="9">
+                        <input type="number" id="contributionCapInput" min="1" max="49" value="9">
                     </div>
                     <div class="rule-input-group" style="flex: 1;">
                         <label for="maxAgeInput">Max Value/Age:</label>
-                        <input type="number" id="maxAgeInput" min="2" max="35" value="10">
+                        <input type="number" id="maxAgeInput" min="2" max="49" value="10">
                     </div>
                 </div>
                 <div class="rule-input-group">
@@ -196,7 +220,7 @@
                 <h4>Rule Generator</h4>
                 <div class="rule-input-group">
                     <label for="generatorCapMaxInput">Max for Generator (Neighbor Cap):</label>
-                    <input type="number" id="generatorCapMaxInput" min="1" max="20" value="9" title="Sets the upper limit for generating 'Max. Neighbor Contribution'.">
+                    <input type="number" id="generatorCapMaxInput" min="1" max="49" value="9" title="Sets the upper limit for generating 'Max. Neighbor Contribution'.">
                 </div>
                 <button id="generateRulesBtn" title="Generate new rules and run simulation immediately">Generate & Run</button>
             </div>
@@ -204,6 +228,7 @@
 
         <!-- COLUMN 3: Rule Hunter -->
         <div class="control-column">
+            <!-- ... (содержимое без изменений) ... -->
             <div class="control-group">
                 <h3>Rule Hunter</h3>
                 <div class="range-container">
@@ -231,27 +256,34 @@
                     </div>
                 </div>
                 <div class="rule-input-group">
-                    <label>Viable Survival %:</label>
-                    <div class="range-container">
-                        <input type="number" id="minSurvivalPercentInput" min="0" max="100" value="5">
-                        <span>-</span>
-                        <input type="number" id="maxSurvivalPercentInput" min="0" max="100" value="15">
+                    <label>Neighborhoods to Test:</label>
+                    <div class="checkbox-container" style="justify-content: space-around;">
+                        <label><input type="checkbox" id="hunterUse4" checked> 4</label>
+                        <label><input type="checkbox" id="hunterUse8" checked> 8</label>
+                        <label><input type="checkbox" id="hunterUse12" checked> 12</label>
                     </div>
+                </div>
+                <div class="rule-input-group">
+                    <label>Viability Checkpoints:</label>
+                    <div id="hunter-checkpoints-container">
+                        <!-- Checkpoints will be dynamically added here -->
+                    </div>
+                    <button id="add-checkpoint-btn">Add Checkpoint</button>
                 </div>
                  <div class="rule-input-group">
                     <label>Max Value/Age Range:</label>
                     <div class="range-container">
-                        <input type="number" id="hunterMinMaxAgeInput" min="2" max="35" value="5">
+                        <input type="number" id="hunterMinMaxAgeInput" min="2" max="49" value="5">
                         <span>-</span>
-                        <input type="number" id="hunterMaxMaxAgeInput" min="2" max="35" value="25">
+                        <input type="number" id="hunterMaxMaxAgeInput" min="2" max="49" value="25">
                     </div>
                 </div>
                 <div class="rule-input-group">
                     <label>Neighbor Cap Range:</label>
                     <div class="range-container">
-                        <input type="number" id="hunterMinCapInput" min="1" max="35" value="1">
+                        <input type="number" id="hunterMinCapInput" min="1" max="49" value="1">
                         <span>-</span>
-                        <input type="number" id="hunterMaxCapInput" min="1" max="35" value="9">
+                        <input type="number" id="hunterMaxCapInput" min="1" max="49" value="9">
                     </div>
                 </div>
                 <div class="rule-input-group">
@@ -269,7 +301,7 @@
                 <button id="hunterBtn">Start Hunter</button>
                 <div id="rule-hunter-results-container">
                     <table id="rule-hunter-results">
-                        <thead><tr><th>Type</th><th>Cap</th><th>Srv</th><th>Brth</th><th>Age</th><th>R?</th><th>Div</th><th>Apply</th></tr></thead>
+                        <thead><tr><th>Type</th><th>Nbrs</th><th>Cap</th><th>Srv</th><th>Brth</th><th>Age</th><th>R?</th><th>Div</th><th>Apply</th></tr></thead>
                         <tbody></tbody>
                     </table>
                 </div>
@@ -299,8 +331,20 @@ document.addEventListener('DOMContentLoaded', () => {
         '#FFFFFF', '#FF4136', '#FF851B', '#FFDC00', '#2ECC40', '#0074D9', '#B10DC9', '#F012BE', '#7FDBFF', '#3D9970',
         '#01FF70', '#85144b', '#F012BE', '#39CCCC', '#3D9970', '#111111', '#AAAAAA', '#DDDDDD', '#FF6347', '#4682B4',
         '#9ACD32', '#DAA520', '#6A5ACD', '#FF4500', '#2E8B57', '#D2691E', '#DC143C', '#00FFFF', '#00008B', '#B8860B',
-        '#006400', '#8B008B', '#FF8C00', '#E9967A', '#8FBC8F', '#483D8B'
+        '#006400', '#8B008B', '#FF8C00', '#E9967A', '#8FBC8F', '#483D8B', '#6B8E23', '#556B2F', '#8B4513', '#A0522D',
+        '#A52A2A', '#B22222', '#CD5C5C', '#F08080', '#FA8072'
     ];
+
+    const NEIGHBOR_OFFSETS = {
+        '4_VN': [[0, -1], [0, 1], [-1, 0], [1, 0]],
+        '4_D':  [[-1, -1], [-1, 1], [1, -1], [1, 1]],
+        '8_M':  [[-1, -1], [-1, 0], [-1, 1], [0, -1], [0, 1], [1, -1], [1, 0], [1, 1]],
+        '8_XC': [[-1, 0], [1, 0], [0, -1], [0, 1], [-2, 0], [2, 0], [0, -2], [0, 2]],
+        '8_XD': [[-1, -1], [1, 1], [1, -1], [-1, 1], [-2, -2], [2, 2], [2, -2], [-2, 2]],
+        '12_C': [[-1, -1], [-1, 0], [-1, 1], [0, -1], [0, 1], [1, -1], [1, 0], [1, 1], [-2, 0], [2, 0], [0, -2], [0, 2]],
+        '12_D': [[-1, -1], [-1, 0], [-1, 1], [0, -1], [0, 1], [1, -1], [1, 0], [1, 1], [-2, -2], [2, 2], [-2, 2], [2, -2]],
+        '12_R': [[-2, -1], [-2, 0], [-2, 1], [2, -1], [2, 0], [2, 1], [-1, -2], [0, -2], [1, -2], [-1, 2], [0, 2], [1, 2]]
+    };
 
     // --- GAME STATE ---
     let grid = createGrid();
@@ -311,58 +355,14 @@ document.addEventListener('DOMContentLoaded', () => {
     let lastAppliedRule = null;
     
     let rules = {
-        type: 'NC', contributionCap: 9, minSurvive: 2, maxSurvive: 3,
-        minBirth: 3, maxBirth: 3, maxAge: 10, reincarnate: true
+        type: 'NC', neighborhoodType: '8_M', contributionCap: 9, 
+        minSurvive: 2, maxSurvive: 3, minBirth: 3, maxBirth: 3, 
+        maxAge: 10, reincarnate: true
     };
 
-    // --- UI ELEMENTS ---
-    const ui = {
-        startStopBtn: document.getElementById('startStopBtn'),
-        stepBtn: document.getElementById('stepBtn'),
-        clearBtn: document.getElementById('clearBtn'),
-        speedSlider: document.getElementById('speedSlider'),
-        speedValue: document.getElementById('speedValue'),
-        randomFillBtn: document.getElementById('randomFillBtn'),
-        densitySlider: document.getElementById('densitySlider'),
-        densityValue: document.getElementById('densityValue'),
-        saveStateBtn: document.getElementById('saveStateBtn'),
-        loadStateBtn: document.getElementById('loadStateBtn'),
-        fileInput: document.getElementById('fileInput'),
-        paletteContainer: document.getElementById('palette'),
-        ruleTypeSelector: document.getElementById('ruleTypeSelector'),
-        contributionCapInput: document.getElementById('contributionCapInput'),
-        minSurviveInput: document.getElementById('minSurviveInput'),
-        maxSurviveInput: document.getElementById('maxSurviveInput'),
-        minBirthInput: document.getElementById('minBirthInput'),
-        maxBirthInput: document.getElementById('maxBirthInput'),
-        agingRulesContainer: document.getElementById('aging-rules'),
-        maxAgeInput: document.getElementById('maxAgeInput'),
-        reincarnateCheckbox: document.getElementById('reincarnateCheckbox'),
-        generateRulesBtn: document.getElementById('generateRulesBtn'),
-        generatorCapMaxInput: document.getElementById('generatorCapMaxInput'),
-        hunterBtn: document.getElementById('hunterBtn'),
-        hunterStatus: document.getElementById('hunter-status'),
-        hunterResultsBody: document.querySelector('#rule-hunter-results tbody'),
-        hunterRuleType: document.getElementById('hunterRuleType'),
-        hunterResultsLimit: document.getElementById('hunterResultsLimit'),
-        hunterStepsInput: document.getElementById('hunterStepsInput'),
-        hunterMaxTestsInput: document.getElementById('hunterMaxTestsInput'),
-        minSurvivalPercentInput: document.getElementById('minSurvivalPercentInput'),
-        maxSurvivalPercentInput: document.getElementById('maxSurvivalPercentInput'),
-        hunterMinMaxAgeInput: document.getElementById('hunterMinMaxAgeInput'),
-        hunterMaxMaxAgeInput: document.getElementById('hunterMaxMaxAgeInput'),
-        hunterMinCapInput: document.getElementById('hunterMinCapInput'),
-        hunterMaxCapInput: document.getElementById('hunterMaxCapInput'),
-        hunterGoalSelector: document.getElementById('hunterGoalSelector'),
-        hunterTargetGroup: document.getElementById('hunter-target-group'),
-        hunterTargetDiversityInput: document.getElementById('hunterTargetDiversityInput'),
-        copyResultsBtn: document.getElementById('copyResultsBtn'),
-        saveResultsBtn: document.getElementById('saveResultsBtn'),
-        loadResultsBtn: document.getElementById('loadResultsBtn'),
-        hunterFileInput: document.getElementById('hunterFileInput'),
-    };
+    const ui = Object.fromEntries([...document.querySelectorAll('[id]')].map(el => [el.id.replace(/-(\w)/g, (m, p1) => p1.toUpperCase()), el]));
+    ui.hunterResultsBody = document.querySelector('#rule-hunter-results tbody');
 
-    // --- SIMULATION FUNCTIONS ---
     function createGrid() { return Array(gridHeight).fill(null).map(() => Array(gridWidth).fill(0)); }
     
     function drawGrid() {
@@ -378,9 +378,18 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    function countNeighborsInDynamicRadius(x, y, maxAge, currentGrid) {
+    // --- ИЗМЕНЕНИЕ 2: Новая функция для специального подсчета соседей в режиме NC ---
+    function getSpecialNeighborCount(x, y, currentGrid, maxAge) {
+        let radius;
+        if (maxAge <= 9) {
+            radius = 1; // 3x3 square
+        } else if (maxAge <= 25) {
+            radius = 2; // 5x5 square
+        } else {
+            radius = 3; // 7x7 square
+        }
+
         let count = 0;
-        const radius = maxAge < 10 ? 1 : (maxAge <= 25 ? 2 : 3);
         for (let dy = -radius; dy <= radius; dy++) {
             for (let dx = -radius; dx <= radius; dx++) {
                 const nx = (x + dx + gridWidth) % gridWidth;
@@ -395,18 +404,19 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function update(currentGrid, currentRules) {
         const newGrid = createGrid();
+        // Шаг 1: Определяем соседей для правил выживания/рождения
+        const survivalOffsets = NEIGHBOR_OFFSETS[currentRules.neighborhoodType] || NEIGHBOR_OFFSETS['8_M'];
+
         for (let y = 0; y < gridHeight; y++) {
             for (let x = 0; x < gridWidth; x++) {
+                // --- Расчет для выживания/рождения (общий для всех режимов) ---
                 let neighborSum = 0;
-                for (let dy = -1; dy <= 1; dy++) {
-                    for (let dx = -1; dx <= 1; dx++) {
-                        if (dx === 0 && dy === 0) continue;
-                        const nx = (x + dx + gridWidth) % gridWidth;
-                        const ny = (y + dy + gridHeight) % gridHeight;
-                        const neighborValue = currentGrid[ny][nx];
-                        if (neighborValue > 0) {
-                            neighborSum += Math.min(neighborValue, currentRules.contributionCap);
-                        }
+                for (const [dx, dy] of survivalOffsets) {
+                    const nx = (x + dx + gridWidth) % gridWidth;
+                    const ny = (y + dy + gridHeight) % gridHeight;
+                    const neighborValue = currentGrid[ny][nx];
+                    if (neighborValue > 0) {
+                        neighborSum += Math.min(neighborValue, currentRules.contributionCap);
                     }
                 }
 
@@ -414,22 +424,26 @@ document.addEventListener('DOMContentLoaded', () => {
                 let nextState = 0;
                 let isAlive = false;
 
-                if (currentState > 0) {
+                // --- Проверка условий выживания/рождения ---
+                if (currentState > 0) { // Клетка жива
                     if (neighborSum >= currentRules.minSurvive && neighborSum <= currentRules.maxSurvive) {
                         isAlive = true;
                     }
-                } else {
+                } else { // Клетка мертва
                     if (neighborSum >= currentRules.minBirth && neighborSum <= currentRules.maxBirth) {
                         isAlive = true;
                     }
                 }
 
+                // --- Определение нового значения клетки, если она жива ---
                 if (isAlive) {
                     if (currentRules.type === 'NC') {
-                        const neighborCount = countNeighborsInDynamicRadius(x, y, currentRules.maxAge, currentGrid);
-                        nextState = Math.min(neighborCount, currentRules.maxAge);
-                        if (nextState === 0 && neighborCount > 0) nextState = 1;
-                    } else {
+                        // --- ИЗМЕНЕНИЕ 3: Используем новую логику подсчета для NC ---
+                        nextState = getSpecialNeighborCount(x, y, currentGrid, currentRules.maxAge);
+                        // Убедимся, что значение не превышает максимум (хотя по логике не должно)
+                        nextState = Math.min(nextState, currentRules.maxAge);
+                        if (nextState === 0) nextState = 1; // Если все вокруг умерли, но клетка выжила, она становится 1
+                    } else { // 'AG'
                         nextState = (currentState > 0 ? currentState : 0) + 1;
                         if (nextState > currentRules.maxAge) {
                             nextState = currentRules.reincarnate ? 1 : 0;
@@ -444,6 +458,7 @@ document.addEventListener('DOMContentLoaded', () => {
         return newGrid;
     }
 
+    // ... Остальной код JavaScript остается без изменений ...
     function gameLoop() {
         if (!isRunning) return;
         grid = update(grid, rules);
@@ -465,8 +480,8 @@ document.addEventListener('DOMContentLoaded', () => {
         ui.startStopBtn.textContent = 'Start';
     }
 
-    function randomFill(targetGrid, maxVal) {
-        const density = parseInt(ui.densitySlider.value, 10) / 100;
+    function randomFill(targetGrid, maxVal, densityPercent) {
+        const density = densityPercent / 100;
         for (let y = 0; y < gridHeight; y++) {
             for (let x = 0; x < gridWidth; x++) {
                 targetGrid[y][x] = (Math.random() < density) ? (Math.floor(Math.random() * maxVal) + 1) : 0;
@@ -478,12 +493,11 @@ document.addEventListener('DOMContentLoaded', () => {
         stopSimulation();
         Object.assign(rules, newRules);
         updateUIFromRules();
-        randomFill(grid, rules.maxAge);
+        randomFill(grid, rules.maxAge, parseInt(ui.densitySlider.value, 10));
         drawGrid();
         startSimulation();
     }
 
-    // --- UI & RULE MANAGEMENT ---
     function setupUI() {
         ui.speedSlider.addEventListener('input', (e) => {
             simulationDelay = parseInt(e.target.value, 10);
@@ -492,14 +506,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
         ui.ruleTypeSelector.addEventListener('change', (e) => {
             rules.type = e.target.value;
-            ui.agingRulesContainer.style.visibility = rules.type === 'AG' ? 'visible' : 'hidden';
+            ui.agingRules.style.visibility = rules.type === 'AG' ? 'visible' : 'hidden';
         });
         
-        const ruleInputs = ['contributionCap', 'minSurvive', 'maxSurvive', 'minBirth', 'maxBirth', 'maxAge'];
+        const ruleInputs = ['neighborhoodType', 'contributionCap', 'minSurvive', 'maxSurvive', 'minBirth', 'maxBirth', 'maxAge'];
         ruleInputs.forEach(key => {
-            const inputEl = ui[key + 'Input'];
+            const inputEl = ui[key + (key.endsWith('Type') ? 'Selector' : 'Input')];
             inputEl.addEventListener('change', () => {
-                rules[key] = parseInt(inputEl.value, 10);
+                rules[key] = isNaN(parseInt(inputEl.value, 10)) ? inputEl.value : parseInt(inputEl.value, 10);
                 if (key === 'maxAge') updatePalette();
             });
         });
@@ -507,13 +521,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
         ui.generateRulesBtn.addEventListener('click', () => {
             const newRules = generateRules();
+            newRules.neighborhoodType = ui.neighborhoodTypeSelector.value;
             lastAppliedRule = newRules;
             applyAndRunNewRules(newRules);
         });
-        ui.randomFillBtn.addEventListener('click', () => { randomFill(grid, rules.maxAge); drawGrid(); });
+        ui.randomFillBtn.addEventListener('click', () => { randomFill(grid, rules.maxAge, parseInt(ui.densitySlider.value, 10)); drawGrid(); });
         ui.densitySlider.addEventListener('input', (e) => { ui.densityValue.textContent = `${e.target.value}%`; });
         
-        // Hunter UI
         ui.hunterBtn.addEventListener('click', toggleHunter);
         ui.hunterGoalSelector.addEventListener('change', (e) => {
             ui.hunterTargetGroup.style.visibility = e.target.value === 'target' ? 'visible' : 'hidden';
@@ -522,10 +536,15 @@ document.addEventListener('DOMContentLoaded', () => {
         ui.saveResultsBtn.addEventListener('click', saveHunterResults);
         ui.loadResultsBtn.addEventListener('click', () => ui.hunterFileInput.click());
         ui.hunterFileInput.addEventListener('change', (e) => { if (e.target.files.length > 0) { loadHunterResults(e.target.files[0]); } });
+        
+        ui.addCheckpointBtn.addEventListener('click', () => addCheckpointRow());
+        ui.hunterStepsInput.addEventListener('change', updateFinalCheckpointStep);
+        setupInitialCheckpoints();
     }
 
     function updateUIFromRules() {
         ui.ruleTypeSelector.value = rules.type;
+        ui.neighborhoodTypeSelector.value = rules.neighborhoodType;
         ui.contributionCapInput.value = rules.contributionCap;
         ui.minSurviveInput.value = rules.minSurvive;
         ui.maxSurviveInput.value = rules.maxSurvive;
@@ -533,13 +552,13 @@ document.addEventListener('DOMContentLoaded', () => {
         ui.maxBirthInput.value = rules.maxBirth;
         ui.maxAgeInput.value = rules.maxAge;
         ui.reincarnateCheckbox.checked = rules.reincarnate;
-        ui.agingRulesContainer.style.visibility = rules.type === 'AG' ? 'visible' : 'hidden';
+        ui.agingRules.style.visibility = rules.type === 'AG' ? 'visible' : 'hidden';
         updatePalette();
     }
 
     function updatePalette() {
-        ui.paletteContainer.innerHTML = '';
-        const maxPaletteItems = 35;
+        ui.palette.innerHTML = '';
+        const maxPaletteItems = 49;
         for (let i = 1; i <= Math.min(rules.maxAge, maxPaletteItems); i++) {
             const box = document.createElement('div');
             box.className = 'color-box';
@@ -551,12 +570,20 @@ document.addEventListener('DOMContentLoaded', () => {
                 currentColor = i;
                 updatePalette();
             });
-            ui.paletteContainer.appendChild(box);
+            ui.palette.appendChild(box);
         }
     }
 
-    function generateRules(forcedType = 'random', ageRange = null, capRange = null) {
+    function generateRules(forcedType = 'random', ageRange = null, capRange = null, neighborhoodTypes = null) {
         const newRules = {};
+        
+        if (neighborhoodTypes && neighborhoodTypes.length > 0) {
+            newRules.neighborhoodType = neighborhoodTypes[Math.floor(Math.random() * neighborhoodTypes.length)];
+        } else {
+            newRules.neighborhoodType = '8_M';
+        }
+        const numNeighbors = NEIGHBOR_OFFSETS[newRules.neighborhoodType].length;
+
         let cap;
         if (capRange) {
             cap = Math.floor(Math.random() * (capRange.max - capRange.min + 1)) + capRange.min;
@@ -565,11 +592,11 @@ document.addEventListener('DOMContentLoaded', () => {
             cap = Math.floor(Math.random() * generatorMax) + 1;
         }
         
-        const maxPossibleSum = 8 * cap;
-        const minB = Math.floor(Math.random() * (cap * 3)) + Math.floor(cap * 0.5);
-        const maxB = minB + Math.floor(Math.random() * cap * 2);
-        const minS = Math.max(1, minB - Math.floor(Math.random() * cap * 1.5));
-        const maxS = minS + Math.floor(Math.random() * cap * 2);
+        const maxPossibleSum = numNeighbors * cap;
+        const minB = Math.floor(Math.random() * (cap * (numNeighbors / 8 * 3))) + Math.floor(cap * 0.5);
+        const maxB = minB + Math.floor(Math.random() * cap * (numNeighbors / 8 * 2));
+        const minS = Math.max(1, minB - Math.floor(Math.random() * cap * (numNeighbors / 8 * 1.5)));
+        const maxS = minS + Math.floor(Math.random() * cap * (numNeighbors / 8 * 2));
 
         newRules.contributionCap = cap;
         newRules.minBirth = Math.min(minB, maxPossibleSum);
@@ -593,11 +620,10 @@ document.addEventListener('DOMContentLoaded', () => {
         return newRules;
     }
 
-    // --- RULE HUNTER ---
     let isHunting = false;
     let rulesTestedCount = 0;
     let totalViableRulesFound = 0;
-    let foundRules = []; // Stores { rule, diversity, score }
+    let foundRules = [];
 
     function toggleHunter() {
         isHunting = !isHunting;
@@ -616,7 +642,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    function huntForRules() {
+    async function huntForRules() {
         if (!isHunting || rulesTestedCount >= parseInt(ui.hunterMaxTestsInput.value, 10)) {
             isHunting = false;
             ui.hunterBtn.textContent = 'Start Hunter';
@@ -630,39 +656,58 @@ document.addEventListener('DOMContentLoaded', () => {
 
         rulesTestedCount++;
         const forcedType = ui.hunterRuleType.value;
-        const ageRange = {
-            min: parseInt(ui.hunterMinMaxAgeInput.value, 10),
-            max: parseInt(ui.hunterMaxMaxAgeInput.value, 10)
-        };
-        const capRange = {
-            min: parseInt(ui.hunterMinCapInput.value, 10),
-            max: parseInt(ui.hunterMaxCapInput.value, 10)
-        };
-        const testRules = generateRules(forcedType, ageRange, capRange);
-        let testGrid = createGrid();
-        randomFill(testGrid, testRules.maxAge);
+        const ageRange = { min: parseInt(ui.hunterMinMaxAgeInput.value, 10), max: parseInt(ui.hunterMaxMaxAgeInput.value, 10) };
+        const capRange = { min: parseInt(ui.hunterMinCapInput.value, 10), max: parseInt(ui.hunterMaxCapInput.value, 10) };
+        
+        const allowedNeighborhoods = [];
+        if (ui.hunterUse4.checked) { allowedNeighborhoods.push('4_VN', '4_D'); }
+        if (ui.hunterUse8.checked) { allowedNeighborhoods.push('8_M', '8_XC', '8_XD'); }
+        if (ui.hunterUse12.checked) { allowedNeighborhoods.push('12_C', '12_D', '12_R'); }
+        if (allowedNeighborhoods.length === 0) {
+            alert("Please select at least one neighborhood type to test in Rule Hunter.");
+            toggleHunter();
+            return;
+        }
 
+        const testRules = generateRules(forcedType, ageRange, capRange, allowedNeighborhoods);
+        let testGrid = createGrid();
+        
+        const checkpoints = getHunterCheckpoints();
+        const initialCheckpoint = checkpoints.find(c => c.step === 0);
+        const initialDensity = initialCheckpoint ? (initialCheckpoint.min + initialCheckpoint.max) / 2 : 30;
+        
+        randomFill(testGrid, testRules.maxAge, initialDensity);
+
+        let isViable = true;
         const simulationSteps = parseInt(ui.hunterStepsInput.value, 10);
         const historyStepsToKeep = 5;
         let gridHistory = [];
 
-        for (let i = 0; i < simulationSteps; i++) {
-            testGrid = update(testGrid, testRules);
+        for (let i = 0; i <= simulationSteps; i++) {
+            const checkpoint = checkpoints.find(c => c.step === i);
+            if (checkpoint) {
+                const currentCount = testGrid.flat().filter(cell => cell > 0).length;
+                const currentPercentage = (currentCount / totalCells) * 100;
+                if (currentPercentage < checkpoint.min || currentPercentage > checkpoint.max) {
+                    isViable = false;
+                    break;
+                }
+            }
+            
             if (i >= simulationSteps - historyStepsToKeep) {
                 gridHistory.push(testGrid.map(row => [...row]));
             }
+            
+            if (i < simulationSteps) {
+                testGrid = update(testGrid, testRules);
+            }
         }
 
-        const finalCount = testGrid.flat().filter(cell => cell > 0).length;
-        const finalPercentage = (finalCount / totalCells) * 100;
-        const minPercent = parseInt(ui.minSurvivalPercentInput.value, 10);
-        const maxPercent = parseInt(ui.maxSurvivalPercentInput.value, 10);
-
-        if (finalPercentage >= minPercent && finalPercentage <= maxPercent) {
+        if (isViable) {
             totalViableRulesFound++;
             
             let diversity = 0;
-            if (gridHistory.length === historyStepsToKeep) {
+            if (gridHistory.length > 1) {
                 const finalGrid = gridHistory[gridHistory.length - 1];
                 const diversityScores = [];
                 for (let i = 0; i < gridHistory.length - 1; i++) {
@@ -672,29 +717,13 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             const goal = ui.hunterGoalSelector.value;
-            let score;
-            if (goal === 'maximize') {
-                score = diversity;
-            } else { // 'target'
-                const target = parseInt(ui.hunterTargetDiversityInput.value, 10);
-                score = Math.abs(diversity - target);
-            }
-
+            const score = (goal === 'maximize') ? diversity : Math.abs(diversity - parseInt(ui.hunterTargetDiversityInput.value, 10));
             const newEntry = { rule: testRules, diversity: diversity, score: score };
             const resultsLimit = parseInt(ui.hunterResultsLimit.value, 10);
 
             foundRules.push(newEntry);
-            
-            // Sort according to goal: descending for maximize, ascending for target
-            if (goal === 'maximize') {
-                foundRules.sort((a, b) => b.score - a.score);
-            } else {
-                foundRules.sort((a, b) => a.score - b.score);
-            }
-
-            if (foundRules.length > resultsLimit) {
-                foundRules.pop(); // Remove the worst entry
-            }
+            foundRules.sort((a, b) => (goal === 'maximize') ? b.score - a.score : a.score - b.score);
+            if (foundRules.length > resultsLimit) foundRules.pop();
             
             redrawHunterTable();
         }
@@ -729,6 +758,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const reincarnateText = ruleData.type === 'AG' ? (ruleData.reincarnate ? 'Y' : 'N') : '—';
             row.innerHTML = `
                 <td>${ruleData.type}</td>
+                <td>${ruleData.neighborhoodType.replace('_', ' ')}</td>
                 <td>${ruleData.contributionCap}</td>
                 <td>${ruleData.minSurvive}-${ruleData.maxSurvive}</td>
                 <td>${ruleData.minBirth}-${ruleData.maxBirth}</td>
@@ -745,12 +775,68 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    function setupInitialCheckpoints() {
+        ui.hunterCheckpointsContainer.innerHTML = '';
+        addCheckpointRow({ step: 0, min: 20, max: 40, label: 'Initial Density %', isFixed: true });
+        addCheckpointRow({ step: parseInt(ui.hunterStepsInput.value, 10), min: 5, max: 15, label: 'Final Survival %', isFixed: true });
+    }
+
+    function addCheckpointRow(data = {}) {
+        const { step = 100, min = 10, max = 20, label, isFixed = false } = data;
+        const row = document.createElement('div');
+        row.className = 'checkpoint-row';
+        
+        const labelText = label || `Step:`;
+        const stepInputHTML = isFixed 
+            ? `<input type="number" class="step-input" value="${step}" readonly title="This value is fixed.">`
+            : `<input type="number" class="step-input" value="${step}" min="1" max="${parseInt(ui.hunterStepsInput.value, 10) - 1}">`;
+        
+        const removeBtnHTML = isFixed ? '' : `<button class="remove-checkpoint-btn" title="Remove checkpoint">-</button>`;
+
+        row.innerHTML = `
+            <label>${labelText}</label>
+            ${stepInputHTML}
+            <input type="number" class="percent-input" value="${min}" min="0" max="100" title="Min %">
+            <span>-</span>
+            <input type="number" class="percent-input" value="${max}" min="0" max="100" title="Max %">
+            ${removeBtnHTML}
+        `;
+
+        if (!isFixed) {
+            row.querySelector('.remove-checkpoint-btn').addEventListener('click', () => row.remove());
+            const lastCheckpointRow = ui.hunterCheckpointsContainer.lastElementChild;
+            ui.hunterCheckpointsContainer.insertBefore(row, lastCheckpointRow);
+        } else {
+            ui.hunterCheckpointsContainer.appendChild(row);
+        }
+    }
+
+    function updateFinalCheckpointStep() {
+        const finalStepInput = ui.hunterCheckpointsContainer.lastElementChild.querySelector('.step-input');
+        if (finalStepInput) {
+            finalStepInput.value = ui.hunterStepsInput.value;
+        }
+    }
+
+    function getHunterCheckpoints() {
+        const checkpoints = [];
+        document.querySelectorAll('#hunter-checkpoints-container .checkpoint-row').forEach(row => {
+            const inputs = row.querySelectorAll('input[type="number"]');
+            checkpoints.push({
+                step: parseInt(inputs[0].value, 10),
+                min: parseInt(inputs[1].value, 10),
+                max: parseInt(inputs[2].value, 10)
+            });
+        });
+        return checkpoints;
+    }
+
     function getHunterDataAsObject() {
         const hunterSettings = {
             simulationSteps: parseInt(ui.hunterStepsInput.value, 10),
             maxTests: parseInt(ui.hunterMaxTestsInput.value, 10),
-            minSurvivalPercent: parseInt(ui.minSurvivalPercentInput.value, 10),
-            maxSurvivalPercent: parseInt(ui.maxSurvivalPercentInput.value, 10),
+            checkpoints: getHunterCheckpoints(),
+            use4: ui.hunterUse4.checked, use8: ui.hunterUse8.checked, use12: ui.hunterUse12.checked,
             minMaxAge: parseInt(ui.hunterMinMaxAgeInput.value, 10),
             maxMaxAge: parseInt(ui.hunterMaxMaxAgeInput.value, 10),
             minCap: parseInt(ui.hunterMinCapInput.value, 10),
@@ -765,28 +851,21 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function copyHunterResults() {
         const dataToCopy = getHunterDataAsObject();
-        const jsonString = JSON.stringify(dataToCopy, null, 2);
-        navigator.clipboard.writeText(jsonString).then(() => {
+        navigator.clipboard.writeText(JSON.stringify(dataToCopy, null, 2)).then(() => {
             const originalText = ui.copyResultsBtn.textContent;
             ui.copyResultsBtn.textContent = 'Copied!';
             setTimeout(() => { ui.copyResultsBtn.textContent = originalText; }, 2000);
-        }).catch(err => {
-            console.error('Failed to copy results: ', err);
-            alert('Failed to copy results to clipboard.');
         });
     }
 
     function saveHunterResults() {
         const dataToSave = getHunterDataAsObject();
         const blob = new Blob([JSON.stringify(dataToSave, null, 2)], { type: 'application/json' });
-        const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
-        a.href = url;
+        a.href = URL.createObjectURL(blob);
         a.download = `gol_hunter_results_${new Date().toISOString().slice(0,19).replace('T','_').replace(/:/g,'-')}.json`;
-        document.body.appendChild(a);
         a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
+        URL.revokeObjectURL(a.href);
     }
 
     function loadHunterResults(file) {
@@ -794,16 +873,14 @@ document.addEventListener('DOMContentLoaded', () => {
         reader.onload = (e) => {
             try {
                 const data = JSON.parse(e.target.result);
-                if (!data.settings || !data.results) {
-                    alert('Error: Invalid hunter results file format.');
-                    return;
-                }
-                // Load settings
+                if (!data.settings || !data.results) throw new Error('Invalid hunter results file format.');
+                
                 const s = data.settings;
                 ui.hunterStepsInput.value = s.simulationSteps || 200;
                 ui.hunterMaxTestsInput.value = s.maxTests || 1000;
-                ui.minSurvivalPercentInput.value = s.minSurvivalPercent || 5;
-                ui.maxSurvivalPercentInput.value = s.maxSurvivalPercent || 15;
+                ui.hunterUse4.checked = s.use4 !== false;
+                ui.hunterUse8.checked = s.use8 !== false;
+                ui.hunterUse12.checked = s.use12 !== false;
                 ui.hunterMinMaxAgeInput.value = s.minMaxAge || 5;
                 ui.hunterMaxMaxAgeInput.value = s.maxMaxAge || 25;
                 ui.hunterMinCapInput.value = s.minCap || 1;
@@ -812,11 +889,23 @@ document.addEventListener('DOMContentLoaded', () => {
                 ui.hunterTargetDiversityInput.value = s.targetDiversity || 300;
                 ui.hunterRuleType.value = s.ruleTypeFilter || 'both';
                 ui.hunterResultsLimit.value = s.resultsLimit || 20;
-
-                // Update UI visibility based on loaded goal
                 ui.hunterTargetGroup.style.visibility = ui.hunterGoalSelector.value === 'target' ? 'visible' : 'hidden';
 
-                // Load results
+                ui.hunterCheckpointsContainer.innerHTML = '';
+                if (s.checkpoints && s.checkpoints.length > 0) {
+                    s.checkpoints.forEach((cp, index) => {
+                        const isFirst = index === 0 && cp.step === 0;
+                        const isLast = index === s.checkpoints.length - 1 && cp.step == ui.hunterStepsInput.value;
+                        addCheckpointRow({
+                            step: cp.step, min: cp.min, max: cp.max,
+                            label: isFirst ? 'Initial Density %' : (isLast ? 'Final Survival %' : 'Step:'),
+                            isFixed: isFirst || isLast
+                        });
+                    });
+                } else {
+                    setupInitialCheckpoints();
+                }
+
                 foundRules = data.results;
                 redrawHunterTable();
                 ui.copyResultsBtn.disabled = false;
@@ -829,47 +918,27 @@ document.addEventListener('DOMContentLoaded', () => {
         reader.readAsText(file);
     }
 
-    // --- SAVE & LOAD STATE ---
-    function valueToChar(value) {
-        if (value === 0) return '0';
-        if (value >= 1 && value <= 9) return String(value);
-        if (value >= 10 && value <= 35) return String.fromCharCode(value - 10 + 97);
-        return '0';
-    }
-    function charToValue(char) {
-        if (char === '0') return 0;
-        const num = parseInt(char, 10);
-        if (!isNaN(num) && num >= 1 && num <= 9) return num;
-        const charCode = char.charCodeAt(0);
-        if (charCode >= 97 && charCode <= 122) return charCode - 97 + 10;
-        return 0;
-    }
+    function valueToChar(v) { return v < 36 ? v.toString(36) : '0'; }
+    function charToValue(c) { return parseInt(c, 36); }
+
     function saveState() {
-        let gridString = '';
-        for (let y = 0; y < gridHeight; y++) {
-            for (let x = 0; x < gridWidth; x++) {
-                gridString += valueToChar(grid[y][x]);
-            }
-        }
+        const gridString = grid.flat().map(valueToChar).join('');
         const state = { rules, grid: gridString, gridWidth, gridHeight };
         const blob = new Blob([JSON.stringify(state, null, 2)], { type: 'application/json' });
-        const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
-        a.href = url;
+        a.href = URL.createObjectURL(blob);
         a.download = `gol_state_${new Date().toISOString().slice(0,19).replace('T','_').replace(/:/g,'-')}.json`;
-        document.body.appendChild(a);
         a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
+        URL.revokeObjectURL(a.href);
     }
+
     function loadState(file) {
         const reader = new FileReader();
         reader.onload = (e) => {
             try {
                 const state = JSON.parse(e.target.result);
                 if (!state.rules || !state.grid || state.gridWidth !== gridWidth || state.gridHeight !== gridHeight) {
-                    alert('Error: Invalid file format or grid dimensions do not match.');
-                    return;
+                    throw new Error('Invalid file format or grid dimensions do not match.');
                 }
                 Object.assign(rules, state.rules);
                 updateUIFromRules();
@@ -888,14 +957,7 @@ document.addEventListener('DOMContentLoaded', () => {
         reader.readAsText(file);
     }
 
-    // --- EVENT HANDLERS ---
-    ui.startStopBtn.addEventListener('click', () => {
-        if (isRunning) {
-            stopSimulation();
-        } else {
-            startSimulation();
-        }
-    });
+    ui.startStopBtn.addEventListener('click', () => { isRunning ? stopSimulation() : startSimulation(); });
     ui.stepBtn.addEventListener('click', () => { if (!isRunning) { grid = update(grid, rules); drawGrid(); } });
     ui.clearBtn.addEventListener('click', () => { grid = createGrid(); drawGrid(); });
     
@@ -914,7 +976,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // --- INITIALIZATION ---
     setupUI();
     updateUIFromRules();
     drawGrid();
