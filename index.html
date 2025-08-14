@@ -235,7 +235,6 @@
         <div class="control-column">
             <div class="control-group">
                 <h3>Rule Hunter</h3>
-                <!-- --- ИЗМЕНЕНИЕ 1: Добавлен независимый переключатель генератора для Rule Hunter --- -->
                 <div class="range-container">
                     <div class="rule-input-group" style="flex: 1;">
                         <label for="hunterRuleType">Rule Type:</label>
@@ -379,6 +378,18 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function createGrid() { return Array(gridHeight).fill(null).map(() => Array(gridWidth).fill(0)); }
     
+    // --- ИЗМЕНЕНИЕ 1: ВСТАВКА УТИЛИТЫ ВЗВЕШЕННОГО ВЫБОРА ---
+    function weightedPick(options) {
+        // options: [{ v: value, w: weight }, ...]
+        const total = options.reduce((s, o) => s + o.w, 0);
+        let r = Math.random() * total;
+        for (const o of options) {
+            r -= o.w;
+            if (r <= 0) return o.v;
+        }
+        return options[options.length - 1].v;
+    }
+
     function drawGrid() {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         for (let y = 0; y < gridHeight; y++) {
@@ -538,7 +549,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     alert("Optimized generator requires a 4, 8, or 12 neighborhood type to be selected.");
                     return;
                 }
-                newRules = generateRulesLikeOptimized(maxAge, cap, neighborhoodClass);
+                // --- ИЗМЕНЕНИЕ 3: ИЗМЕНЕНИЕ ОБРАБОТЧИКА КНОПКИ "GENERATE & RUN" ---
+                const mode = Math.random() < 0.5 ? 'low' : 'high'; // случайный выбор варианта
+                newRules = generateRulesOptimizedSmart(maxAge, cap, neighborhoodClass, mode);
+
             } else { // 'random'
                 newRules = generateRules();
                 newRules.neighborhoodType = ui.neighborhoodTypeSelector.value;
@@ -597,7 +611,10 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    function generateRulesLikeOptimized(maxAge, contributionCap, neighborhoods) {
+    // --- ИЗМЕНЕНИЕ 2: ЗАМЕНА СТАРОГО ГЕНЕРАТОРА НА ДВЕ НОВЫЕ ФУНКЦИИ И ОБЕРТКУ ---
+    
+    // Вариант для ВЫСОКОЙ конечной плотности (бывший generateRulesLikeOptimized)
+    function generateRulesLikeOptimizedHigh(maxAge, contributionCap, neighborhoods) {
         const neighbors = Number(neighborhoods);
         const neighMap = {
             4: ['4_VN', '4_D'],
@@ -612,16 +629,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const bands = {
             "4": {
-            "NC": { mb:[0.11,0.18], xb:[0.29,0.37], ms:[0.08,0.15], xs:[0.22,0.32] },
-            "AG": { mb:[0.10,0.18], xb:[0.27,0.34], ms:[0.06,0.14], xs:[0.20,0.32] }
+                "NC": { mb:[0.11,0.18], xb:[0.29,0.37], ms:[0.08,0.15], xs:[0.22,0.32] },
+                "AG": { mb:[0.10,0.18], xb:[0.27,0.34], ms:[0.06,0.14], xs:[0.20,0.32] }
             },
             "8": {
-            "NC": { mb:[0.13,0.20], xb:[0.32,0.40], ms:[0.03,0.09], xs:[0.20,0.30] },
-            "AG": { mb:[0.08,0.14], xb:[0.26,0.33], ms:[0.01,0.04], xs:[0.08,0.12] }
+                "NC": { mb:[0.13,0.20], xb:[0.32,0.40], ms:[0.03,0.09], xs:[0.20,0.30] },
+                "AG": { mb:[0.08,0.14], xb:[0.26,0.33], ms:[0.01,0.04], xs:[0.08,0.12] }
             },
             "12": {
-            "NC": { mb:[0.13,0.20], xb:[0.33,0.40], ms:[0.06,0.12], xs:[0.24,0.32] },
-            "AG": { mb:[0.07,0.11], xb:[0.26,0.31], ms:[0.01,0.03], xs:[0.08,0.12] }
+                "NC": { mb:[0.13,0.20], xb:[0.33,0.40], ms:[0.06,0.12], xs:[0.24,0.32] },
+                "AG": { mb:[0.07,0.11], xb:[0.26,0.31], ms:[0.01,0.03], xs:[0.08,0.12] }
             }
         };
 
@@ -648,13 +665,11 @@ document.addEventListener('DOMContentLoaded', () => {
         if (maxSurvive > maxBirth) maxSurvive = Math.floor(0.9 * maxBirth);
         if (minSurvive > minBirth) minSurvive = Math.floor(0.9 * minBirth);
 
-        minSurvive = clampT(minSurvive);
-        maxSurvive = clampT(Math.max(maxSurvive, minSurvive + 1));
-
-        if (maxBirth - minBirth < Math.max(2, Math.round(0.05 * T))) {
+        // Ширина окон как было раньше
+        if (maxBirth - minBirth < Math.max(2, Math.round(0.08 * T))) {
             maxBirth = clampT(minBirth + Math.max(2, Math.round(0.08 * T)));
         }
-        if (maxSurvive - minSurvive < Math.max(2, Math.round(0.04 * T))) {
+        if (maxSurvive - minSurvive < Math.max(2, Math.round(0.06 * T))) {
             maxSurvive = clampT(minSurvive + Math.max(2, Math.round(0.06 * T)));
         }
 
@@ -663,6 +678,92 @@ document.addEventListener('DOMContentLoaded', () => {
             minSurvive, maxSurvive, maxAge,
             reincarnate: Math.random() < 0.5, type
         };
+    }
+
+    // Новый вариант для НИЗКОЙ конечной плотности
+    function generateRulesLikeOptimizedLow(maxAge, contributionCap, neighborhoods) {
+        const neighbors = Number(neighborhoods);
+
+        // Взвешенный выбор конкретного шаблона окрестности
+        const weightedNeigh = {
+            4: [ {v:'4_VN', w:0.7}, {v:'4_D', w:0.3} ],
+            8: [ {v:'8_M', w:0.6}, {v:'8_XD', w:0.25}, {v:'8_XC', w:0.15} ],
+            12:[ {v:'12_R', w:0.5}, {v:'12_D', w:0.3}, {v:'12_C', w:0.2} ],
+        };
+        const neighborhoodType = weightedPick(weightedNeigh[neighbors] || weightedNeigh[8]);
+
+        // Небольшой сдвиг в пользу NC, но AG оставляем заметным
+        const pNC = {4:0.65, 8:0.65, 12:0.6}[neighbors] || 0.6;
+        const type = Math.random() < pNC ? 'NC' : 'AG';
+
+        const T = Math.max(1, neighbors * contributionCap);
+
+        // Диапазоны как доли от T, выведены из ваших лучших правил при Final Survival < 30%
+        const bandsLow = {
+            "4": {
+                "NC": { mb:[0.10,0.18], xb:[0.16,0.22], ms:[0.06,0.12], xs:[0.14,0.24] },
+                "AG": { mb:[0.08,0.14], xb:[0.12,0.18], ms:[0.05,0.10], xs:[0.18,0.26] }
+            },
+            "8": {
+                "NC": { mb:[0.13,0.21], xb:[0.20,0.27], ms:[0.03,0.12], xs:[0.12,0.22] },
+                "AG": { mb:[0.12,0.18], xb:[0.18,0.27], ms:[0.02,0.08], xs:[0.10,0.20] }
+            },
+            "12": {
+                "NC": { mb:[0.13,0.21], xb:[0.20,0.32], ms:[0.06,0.20], xs:[0.14,0.34] },
+                "AG": { mb:[0.14,0.18], xb:[0.17,0.25], ms:[0.04,0.11], xs:[0.14,0.24] }
+            }
+        };
+        const b = bandsLow[String(neighbors)][type];
+
+        function jitter(minF, maxF, k = 0.15) {
+            const span = maxF - minF;
+            let f = minF + Math.random() * span;
+            const shift = (Math.random() - 0.5) * span * k * 2;
+            f = Math.min(maxF, Math.max(minF, f + shift));
+            return f;
+        }
+        const pickInt = (minF, maxF) => Math.round(jitter(minF, maxF) * T);
+        const clampT = v => Math.max(0, Math.min(v, T));
+
+        let minBirth = pickInt(b.mb[0], b.mb[1]);
+        let maxBirth = pickInt(b.xb[0], b.xb[1]);
+        let minSurvive = pickInt(b.ms[0], b.ms[1]);
+        let maxSurvive = pickInt(b.xs[0], b.xs[1]);
+
+        // Коррекции и ужесточения под низкую плотность
+        minBirth = clampT(minBirth);
+        maxBirth = clampT(Math.max(maxBirth, minBirth + (Math.random() < 0.6 ? 1 : 0))); // 40% шанс на равные границы
+        if (maxSurvive > maxBirth) maxSurvive = Math.floor(0.95 * maxBirth);
+        if (minSurvive > minBirth) minSurvive = Math.floor(0.9 * minBirth);
+
+        // Более мягкие требования к ширине
+        const minBW = Math.max(0, Math.round(0.04 * T) - 1); // окна рождения часто узкие
+        const minSW = Math.max(0, Math.round(0.02 * T) - 1); // окно выживания еще уже
+
+        if (maxBirth - minBirth < minBW) {
+            maxBirth = clampT(minBirth + minBW);
+        }
+        if (maxSurvive - minSurvive < minSW) {
+            maxSurvive = clampT(minSurvive + minSW);
+        }
+
+        const pReinc = (type === 'AG')
+            ? ({4:0.5, 8:0.7, 12:0.65}[neighbors] || 0.65)
+            : 0.5;
+
+        return {
+            neighborhoodType, contributionCap, minBirth, maxBirth,
+            minSurvive, maxSurvive, maxAge,
+            reincarnate: Math.random() < pReinc, type
+        };
+    }
+
+    // Универсальная обертка-маршрутизатор
+    function generateRulesOptimizedSmart(maxAge, contributionCap, neighborhoods, mode = 'auto') {
+        if (mode === 'low') return generateRulesLikeOptimizedLow(maxAge, contributionCap, neighborhoods);
+        if (mode === 'high') return generateRulesLikeOptimizedHigh(maxAge, contributionCap, neighborhoods);
+        // auto: оставим high по умолчанию
+        return generateRulesLikeOptimizedHigh(maxAge, contributionCap, neighborhoods);
     }
 
     function generateRules(forcedType = 'random', ageRange = null, capRange = null, neighborhoodTypes = null) {
@@ -747,7 +848,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
         rulesTestedCount++;
         
-        // --- ИЗМЕНЕНИЕ 2: Логика Rule Hunter теперь использует свой собственный переключатель генератора ---
         const generatorType = ui.hunterGeneratorTypeSelector.value;
         const ageRange = { min: parseInt(ui.hunterMinMaxAgeInput.value, 10), max: parseInt(ui.hunterMaxMaxAgeInput.value, 10) };
         const capRange = { min: parseInt(ui.hunterMinCapInput.value, 10), max: parseInt(ui.hunterMaxCapInput.value, 10) };
@@ -770,7 +870,13 @@ document.addEventListener('DOMContentLoaded', () => {
             const maxAge = Math.floor(Math.random() * (ageRange.max - ageRange.min + 1)) + ageRange.min;
             const cap = Math.floor(Math.random() * (capRange.max - capRange.min + 1)) + capRange.min;
 
-            testRules = generateRulesLikeOptimized(maxAge, cap, neighborhoodClass);
+            // --- ИЗМЕНЕНИЕ 4: ИЗМЕНЕНИЕ ВЕТКИ OPTIMIZED В RULE HUNTER ---
+            // Понимаем целевую плотность по последнему чекпоинту
+            const checkpoints = getHunterCheckpoints();
+            const finalCp = checkpoints.length ? checkpoints[checkpoints.length - 1] : null;
+            const mode = (finalCp && finalCp.max < 30) ? 'low' : 'high';
+
+            testRules = generateRulesOptimizedSmart(maxAge, cap, neighborhoodClass, mode);
             
             const forcedType = ui.hunterRuleType.value;
             if (forcedType !== 'both' && testRules.type !== forcedType) {
