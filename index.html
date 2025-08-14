@@ -112,6 +112,45 @@
         .checkpoint-row .percent-input { flex: 1 1 50px; }
         .checkpoint-row button { width: 30px; padding: 4px; font-size: 12px; background-color: #f44336; flex-shrink: 0; }
         #add-checkpoint-btn { background-color: #2196F3; margin-top: 5px; }
+
+        /* --- НАЧАЛО БЛОКА ДЛЯ МОБИЛЬНОЙ АДАПТАЦИИ --- */
+        @media (max-width: 1100px) {
+            body {
+                /* Располагаем холст и панель управления друг под другом */
+                flex-direction: column;
+                align-items: center;
+                padding: 10px;
+                gap: 15px;
+            }
+
+            /* --- ДОБАВЛЕНО: Стили для контейнера холста --- */
+            #main-container {
+                position: sticky; /* Делаем контейнер "липким" */
+                top: 10px;        /* Отступ от верха экрана, к которому он прилипнет */
+                z-index: 10;      /* Чтобы он был поверх других элементов при скролле */
+                width: 100%;      /* Занимает всю ширину для правильного позиционирования */
+                background-color: #f0f0f0; /* Фон, чтобы скрыть контент под ним */
+                padding-bottom: 5px; /* Небольшой отступ снизу для красоты */
+            }
+
+            canvas {
+                /* Холст занимает всю ширину, но не более 500px, сохраняя пропорции */
+                width: 100%;
+                max-width: 500px;
+                height: auto;
+                display: block; /* Убирает лишний отступ снизу */
+                margin: 0 auto; /* Центрирует, если max-width сработал */
+            }
+
+            #all-controls-wrapper {
+                /* Перестраиваем 3 колонки управления в одну */
+                grid-template-columns: 1fr;
+                width: 100%;
+                max-width: 500px; /* Для консистентности с холстом */
+            }
+        }
+        /* --- КОНЕЦ БЛОКА --- */
+
     </style>
 </head>
 <body>
@@ -329,6 +368,7 @@
     </div>
 
 <script>
+// --- ВЕСЬ JAVASCRIPT ОСТАЕТСЯ БЕЗ ИЗМЕНЕНИЙ ---
 document.addEventListener('DOMContentLoaded', () => {
     // --- CONSTANTS AND SETTINGS ---
     const canvas = document.getElementById('gameCanvas');
@@ -378,9 +418,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function createGrid() { return Array(gridHeight).fill(null).map(() => Array(gridWidth).fill(0)); }
     
-    // --- ИЗМЕНЕНИЕ 1: ВСТАВКА УТИЛИТЫ ВЗВЕШЕННОГО ВЫБОРА ---
     function weightedPick(options) {
-        // options: [{ v: value, w: weight }, ...]
         const total = options.reduce((s, o) => s + o.w, 0);
         let r = Math.random() * total;
         for (const o of options) {
@@ -406,11 +444,11 @@ document.addEventListener('DOMContentLoaded', () => {
     function getSpecialNeighborCount(x, y, currentGrid, maxAge) {
         let radius;
         if (maxAge <= 9) {
-            radius = 1; // 3x3 square
+            radius = 1;
         } else if (maxAge <= 25) {
-            radius = 2; // 5x5 square
+            radius = 2;
         } else {
-            radius = 3; // 7x7 square
+            radius = 3;
         }
 
         let count = 0;
@@ -549,8 +587,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     alert("Optimized generator requires a 4, 8, or 12 neighborhood type to be selected.");
                     return;
                 }
-                // --- ИЗМЕНЕНИЕ 3: ИЗМЕНЕНИЕ ОБРАБОТЧИКА КНОПКИ "GENERATE & RUN" ---
-                const mode = Math.random() < 0.5 ? 'low' : 'high'; // случайный выбор варианта
+                const mode = Math.random() < 0.5 ? 'low' : 'high';
                 newRules = generateRulesOptimizedSmart(maxAge, cap, neighborhoodClass, mode);
 
             } else { // 'random'
@@ -610,10 +647,7 @@ document.addEventListener('DOMContentLoaded', () => {
             ui.palette.appendChild(box);
         }
     }
-
-    // --- ИЗМЕНЕНИЕ 2: ЗАМЕНА СТАРОГО ГЕНЕРАТОРА НА ДВЕ НОВЫЕ ФУНКЦИИ И ОБЕРТКУ ---
     
-    // Вариант для ВЫСОКОЙ конечной плотности (бывший generateRulesLikeOptimized)
     function generateRulesLikeOptimizedHigh(maxAge, contributionCap, neighborhoods) {
         const neighbors = Number(neighborhoods);
         const neighMap = {
@@ -665,7 +699,6 @@ document.addEventListener('DOMContentLoaded', () => {
         if (maxSurvive > maxBirth) maxSurvive = Math.floor(0.9 * maxBirth);
         if (minSurvive > minBirth) minSurvive = Math.floor(0.9 * minBirth);
 
-        // Ширина окон как было раньше
         if (maxBirth - minBirth < Math.max(2, Math.round(0.08 * T))) {
             maxBirth = clampT(minBirth + Math.max(2, Math.round(0.08 * T)));
         }
@@ -680,11 +713,9 @@ document.addEventListener('DOMContentLoaded', () => {
         };
     }
 
-    // Новый вариант для НИЗКОЙ конечной плотности
     function generateRulesLikeOptimizedLow(maxAge, contributionCap, neighborhoods) {
         const neighbors = Number(neighborhoods);
 
-        // Взвешенный выбор конкретного шаблона окрестности
         const weightedNeigh = {
             4: [ {v:'4_VN', w:0.7}, {v:'4_D', w:0.3} ],
             8: [ {v:'8_M', w:0.6}, {v:'8_XD', w:0.25}, {v:'8_XC', w:0.15} ],
@@ -692,13 +723,11 @@ document.addEventListener('DOMContentLoaded', () => {
         };
         const neighborhoodType = weightedPick(weightedNeigh[neighbors] || weightedNeigh[8]);
 
-        // Небольшой сдвиг в пользу NC, но AG оставляем заметным
         const pNC = {4:0.65, 8:0.65, 12:0.6}[neighbors] || 0.6;
         const type = Math.random() < pNC ? 'NC' : 'AG';
 
         const T = Math.max(1, neighbors * contributionCap);
 
-        // Диапазоны как доли от T, выведены из ваших лучших правил при Final Survival < 30%
         const bandsLow = {
             "4": {
                 "NC": { mb:[0.10,0.18], xb:[0.16,0.22], ms:[0.06,0.12], xs:[0.14,0.24] },
@@ -730,15 +759,13 @@ document.addEventListener('DOMContentLoaded', () => {
         let minSurvive = pickInt(b.ms[0], b.ms[1]);
         let maxSurvive = pickInt(b.xs[0], b.xs[1]);
 
-        // Коррекции и ужесточения под низкую плотность
         minBirth = clampT(minBirth);
-        maxBirth = clampT(Math.max(maxBirth, minBirth + (Math.random() < 0.6 ? 1 : 0))); // 40% шанс на равные границы
+        maxBirth = clampT(Math.max(maxBirth, minBirth + (Math.random() < 0.6 ? 1 : 0)));
         if (maxSurvive > maxBirth) maxSurvive = Math.floor(0.95 * maxBirth);
         if (minSurvive > minBirth) minSurvive = Math.floor(0.9 * minBirth);
 
-        // Более мягкие требования к ширине
-        const minBW = Math.max(0, Math.round(0.04 * T) - 1); // окна рождения часто узкие
-        const minSW = Math.max(0, Math.round(0.02 * T) - 1); // окно выживания еще уже
+        const minBW = Math.max(0, Math.round(0.04 * T) - 1);
+        const minSW = Math.max(0, Math.round(0.02 * T) - 1);
 
         if (maxBirth - minBirth < minBW) {
             maxBirth = clampT(minBirth + minBW);
@@ -758,11 +785,9 @@ document.addEventListener('DOMContentLoaded', () => {
         };
     }
 
-    // Универсальная обертка-маршрутизатор
     function generateRulesOptimizedSmart(maxAge, contributionCap, neighborhoods, mode = 'auto') {
         if (mode === 'low') return generateRulesLikeOptimizedLow(maxAge, contributionCap, neighborhoods);
         if (mode === 'high') return generateRulesLikeOptimizedHigh(maxAge, contributionCap, neighborhoods);
-        // auto: оставим high по умолчанию
         return generateRulesLikeOptimizedHigh(maxAge, contributionCap, neighborhoods);
     }
 
@@ -870,8 +895,6 @@ document.addEventListener('DOMContentLoaded', () => {
             const maxAge = Math.floor(Math.random() * (ageRange.max - ageRange.min + 1)) + ageRange.min;
             const cap = Math.floor(Math.random() * (capRange.max - capRange.min + 1)) + capRange.min;
 
-            // --- ИЗМЕНЕНИЕ 4: ИЗМЕНЕНИЕ ВЕТКИ OPTIMIZED В RULE HUNTER ---
-            // Понимаем целевую плотность по последнему чекпоинту
             const checkpoints = getHunterCheckpoints();
             const finalCp = checkpoints.length ? checkpoints[checkpoints.length - 1] : null;
             const mode = (finalCp && finalCp.max < 30) ? 'low' : 'high';
